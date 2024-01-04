@@ -1,92 +1,11 @@
 import jax.numpy as np
-from jax import grad, jit, vmap
+from jax import grad
 from jax import random
 import jax.scipy.stats as stats
 import matplotlib.pyplot as plt
 
 from langevin_dynamic import sample
-
-
-def gaussian_mixture(
-    x: np.ndarray,
-    mean_0: np.ndarray = np.array([-3, -3]),
-    var_0: float = 1,
-    mean_1: np.ndarray = ([2, 2]),
-    var_1: float = 2,
-    perturb_var: float = 0.1,
-    key=random.PRNGKey(42),
-):
-    cov_0 = var_0 * np.eye(2)
-    multi_0 = stats.multivariate_normal.pdf(
-        x,
-        mean=mean_0,
-        cov=cov_0,
-    )
-
-    cov_1 = var_1 * np.eye(2)
-    multi_1 = stats.multivariate_normal.pdf(
-        x,
-        mean=mean_1,
-        cov=cov_1,
-    )
-    return 0.2 * multi_0 + 0.8 * multi_1
-
-
-def log_gaussian_mixture(
-    x: np.ndarray,
-    mean_0: np.ndarray = np.array([-3, -3], dtype=np.float32),
-    var_0: float = 1,
-    mean_1: np.ndarray = np.array([2, 2], dtype=np.float32),
-    var_1: float = 2,
-):
-    mixture = gaussian_mixture(x, mean_0, var_0, mean_1, var_1)
-    return np.log(mixture)
-
-
-def score_gaussian_mixture(x):
-    return grad(log_gaussian_mixture)(x)
-
-
-def plot_gaussian_mixture(
-    mean_0,
-    var_0,
-    mean_1,
-    var_1,
-    perturb_var,
-    key,
-    num_points=40,
-    ax=plt,
-):
-    x1 = np.linspace(-5, 5, num_points)
-    x2 = np.linspace(-5, 5, num_points)
-
-    X, Y = np.array(np.meshgrid(x1, x2))
-    x = np.dstack((X, Y))
-
-    key, subkey = random.split(key)
-    y = np.array(
-        [
-            gaussian_mixture(i, mean_0, var_0, mean_1, var_1, perturb_var, subkey)
-            for i in x.reshape(num_points**2, 2)
-        ]
-    )
-    y = y.reshape(num_points, num_points)
-
-    ax.contourf(x1, x2, y, alpha=0.7)
-
-
-# def p_0(x):
-#     n_1 = normal(mu=(0, 0), sigma=0.1)
-#     n_2 = normal(mu=(1, 1), sigma=0.1)
-#     return 0.1 * n_1(x) + 0.9 * n_2(x)
-
-
-# def p(x, sigma):
-#     n_1_sigma = (0.1**2 + sigma**2) ** 0.5
-
-#     n_1 = normal(mu=(0, 0), sigma=n_sigma)
-#     n_2 = normal(mu=(1, 1), sigma=n_sigma)
-#     return 0.1 * n_1(x) + 0.9 * n_2(x)
+from typing import Tuple
 
 
 def gaussian_mixture_noise(
@@ -96,8 +15,22 @@ def gaussian_mixture_noise(
     var_0: float = 1,
     mean_1: np.ndarray = ([2, 2]),
     var_1: float = 2,
-    key=random.PRNGKey(42),
-):
+) -> np.ndarray:
+    """
+    Compute the probability density function of a Gaussian mixture with noise.
+
+    Parameters:
+        x (np.ndarray): Input array of shape (n, 2).
+        sigma (float): Standard deviation of the noise.
+        mean_0 (np.ndarray, optional): Mean of the first Gaussian. Defaults to np.array([-3, -3]).
+        var_0 (float, optional): Variance of the first Gaussian. Defaults to 1.
+        mean_1 (np.ndarray, optional): Mean of the second Gaussian. Defaults to np.array([2, 2]).
+        var_1 (float, optional): Variance of the second Gaussian. Defaults to 2.
+
+    Returns:
+        np.ndarray: Array of shape (n,) representing the probability density function of the Gaussian mixture noise.
+    """
+    # compute first gaussian
     sigma_0 = var_0 + sigma**2
     cov_0 = sigma_0 * np.eye(2)
     multi_0 = stats.multivariate_normal.pdf(
@@ -106,6 +39,7 @@ def gaussian_mixture_noise(
         cov=cov_0,
     )
 
+    # compute second gaussian
     sigma_1 = var_1 + sigma**2
     cov_1 = sigma_1 * np.eye(2)
     multi_1 = stats.multivariate_normal.pdf(
@@ -113,23 +47,92 @@ def gaussian_mixture_noise(
         mean=mean_1,
         cov=cov_1,
     )
+
+    # return the mixture
     return 0.2 * multi_0 + 0.8 * multi_1
 
 
 def log_gaussian_mixture_noise(
     x: np.ndarray,
     sigma: float,
+    mean_0: np.ndarray = np.array([-3, -3], dtype=np.float32),
+    var_0: float = 1,
+    mean_1: np.ndarray = np.array([2, 2], dtype=np.float32),
+    var_1: float = 2,
+) -> np.ndarray:
+    """
+    Compute the log of a Gaussian mixture noise.
+
+    Parameters:
+    - x: Input array.
+    - sigma: Standard deviation of the noise.
+    - mean_0: Mean of the first Gaussian component.
+    - var_0: Variance of the first Gaussian component.
+    - mean_1: Mean of the second Gaussian component.
+    - var_1: Variance of the second Gaussian component.
+
+    Returns:
+    - np.ndarray: Array containing the log of the Gaussian mixture noise.
+    """
+    # compute the mixture
+    mixture = gaussian_mixture_noise(x, sigma, mean_0, var_0, mean_1, var_1)
+
+    # return the log of the mixture
+    return np.log(mixture)
+
+
+def plot_gaussian_mixture(
+    perturb_var: float = 0,
     mean_0: np.ndarray = np.array([-3, -3]),
     var_0: float = 1,
     mean_1: np.ndarray = np.array([2, 2]),
     var_1: float = 2,
-):
-    mixture = gaussian_mixture_noise(x, sigma, mean_0, var_0, mean_1, var_1)
-    return np.log(mixture)
+    key: random.PRNGKey = random.PRNGKey(42),
+    num_points: int = 40,
+    ax: plt.Axes = plt,
+) -> None:
+    """
+    Plots a 2D Gaussian mixture.
 
+    Parameters:
+        perturb_var (float): Variance of the perturbation noise.
+        mean_0 (np.ndarray): Mean of the first Gaussian component.
+        var_0 (float): Variance of the first Gaussian component.
+        mean_1 (np.ndarray): Mean of the second Gaussian component.
+        var_1 (float): Variance of the second Gaussian component.
+        key (random.PRNGKey): Random key for generating random numbers.
+        num_points (int): Number of points in the grid.
+        ax (plt.Axes): Axes object to plot the mixture on.
 
-def perturb(x, key, var=0.1):
-    return x + random.normal(key, shape=x.shape) * var
+    Returns:
+        None
+    """
+    # Create the grid.
+    x1 = np.linspace(-5, 5, num_points)
+    x2 = np.linspace(-5, 5, num_points)
+    X, Y = np.array(np.meshgrid(x1, x2))
+    x = np.dstack((X, Y))
+
+    # Compute the mixture.
+    key, subkey = random.split(key)
+    y = np.array(
+        [
+            gaussian_mixture_noise(
+                i,
+                perturb_var,
+                mean_0,
+                var_0,
+                mean_1,
+                var_1,
+                subkey,
+            )
+            for i in x.reshape(num_points**2, 2)
+        ]
+    )
+    y = y.reshape(num_points, num_points)
+
+    # Plot the mixture.
+    ax.contourf(x1, x2, y, alpha=0.7)
 
 
 if __name__ == "__main__":
