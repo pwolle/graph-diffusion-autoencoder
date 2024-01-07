@@ -1,24 +1,43 @@
 import glob
 from rdkit import Chem
+import wget
+import tarfile
+import os
 
-def adj_gen(path, gdb_files):
-    """Generate adj matricees from smiles files 
+def adj_gen(path,files):
+    """Generate adj matricees from smiles files (Generator function) 
     
-    :param path: Path to smiles files (wildcards with * can be set)
-    :param gdb_files: Used if the smiles files dont exist yet --> Automatically downloads it 
+    :param path: Path to directory where the smiles files are stored (Wildcard can be used)
+    :param files: Files to be used (Wildcards can be used)
+    :return:
     """
-    
+
+    print(glob.glob(path + "/" + files))
+    print("hello")
+
     #Check if file exist, if not try to download
-    if not glob.glob(path):
-        print(f"FILES DOES NOT EXIST YET, DOWNLOADING {gdb_files}!")
-        #TO BE IMPLEMENTED: DOWNLOADING FILES AUTOMATICALLY
-    
-    #Check again if file exist now after downloading
-    if not glob.glob(path):
-        raise FileNotFoundError("FILES COULD NOT BE FOUND OR DOWNLOADED!!")
+    if not glob.glob(path + "/" +files):
+        print(f"FILES DOES NOT EXIST YET, DOWNLOADING GDB files!")
+
+        #Download data
+        wget.download("https://zenodo.org/record/5172018/files/gdb13.g.tgz")
+        wget.download("https://zenodo.org/record/5172018/files/gdb13.sk.tgz")
+
+        #Extract files
+        file = tarfile.open("gdb13.g.tgz")
+        file.extractall(path)
+        file.close()
+
+        file = tarfile.open("gdb13.sk.tgz")
+        file.extractall(path)
+        file.close()
+
+        #Delete tar files
+        os.remove("gdb13.g.tgz")
+        os.remove("gdb13.sk.tgz")
     
     # Read SMILES from the file
-    for file_path in glob.glob(path):
+    for file_path in glob.glob(path + "/" + files):
         with open(file_path, 'r') as file:
             for line in file:
                 mol = Chem.MolFromSmiles(line)
