@@ -92,6 +92,8 @@ class InputLayer(fj.Module):
         )
 
     def __call__(self, e, sigma):
+        e = ratio_encoding(e, sigma, self.prior)
+
         d = jnp.sum(e, axis=-1, keepdims=True)
         d = fourier_features(d, self.dim * 2)
 
@@ -100,7 +102,6 @@ class InputLayer(fj.Module):
 
         v = self.mlp(jnp.concatenate([d, s], axis=-1))
 
-        e = ratio_encoding(e, sigma, self.prior)
         e = set_diagonal(e, 1)
         return e, v
 
@@ -115,6 +116,7 @@ class GCNLayer(fj.Module):
     def __call__(self, e, v):
         v = self.linear(v)
         v = layer_norm(v)
+        v = jnn.relu(v)
 
         v = e @ v
         v = layer_norm(v)
