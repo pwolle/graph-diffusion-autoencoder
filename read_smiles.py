@@ -11,10 +11,6 @@ def adj_gen(path,files):
     :param files: Files to be used (Wildcards can be used)
     :return:
     """
-
-    print(glob.glob(path + "/" + files))
-    print("hello")
-
     #Check if file exist, if not try to download
     if not glob.glob(path + "/" +files):
         print(f"FILES DOES NOT EXIST YET, DOWNLOADING GDB files!")
