@@ -4,6 +4,7 @@ import wget
 import tarfile
 import os
 import memmpy
+from tqdm import tqdm
 
 
 def adj_gen(path, files):
@@ -44,8 +45,8 @@ def adj_gen(path, files):
 
 def save_with_memmpy(
     data_path: str,
-    gdb_files,
-    memmpy_path: str = "data.mmpy",
+    files,
+    memmpy_path: str = "data/mmpy",
     key: str = "adj",
 ):
     """
@@ -56,8 +57,8 @@ def save_with_memmpy(
     path: str
         Path to smiles files (wildcards with * can be set)
 
-    gdb_files:
-        Used if the smiles files dont exist yet --> Automatically downloads it
+    files:
+        Files to be used (how many atoms per molecule)
 
     memmpy_path: str
         Path to memmap file
@@ -66,7 +67,7 @@ def save_with_memmpy(
         Key to access the memmap file
     """
 
-    dataset = adj_gen(data_path, gdb_files)
+    dataset = adj_gen(data_path, files)
     with memmpy.WriteVector(path=memmpy_path, name=key) as memfile:
-        for adj in dataset:
+        for adj in tqdm(dataset):  # add tqdm here
             memfile.append(adj)
