@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import memmpy
 import optax
 import tqdm
+import wandb
+import datetime
 
 from data import gdb13_graph_memmap
 from models import BinaryEdgesModel, score_interpolation_loss
@@ -19,6 +21,24 @@ def main(
     dim_at: int = 128,
     seed: int = 0,
 ):
+    timestamp = datetime.datetime.now()
+    timestamp = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+
+    wandb.init(
+        project="graph-diffusion-autoencoder",
+        config={
+            "natoms": natoms,
+            "batch_size": batch_size,
+            "epochs": epochs,
+            "lr": lr,
+            "nlayer": nlayer,
+            "dim": dim,
+            "dim_at": dim_at,
+            "seed": seed,
+            "start time": timestamp,
+        },
+    )
+
     key = jrandom.PRNGKey(seed)
     key, model_key = jrandom.split(key)
 
@@ -56,9 +76,6 @@ def main(
     data_valid = memmpy.split(data, "valid", shuffle=True, seed=seed)  # type: ignore
     data_valid = memmpy.unwrap(data_valid)[:1024]
 
-    losses_train = []
-    losses_valid = []
-
     for epoch in range(epochs):
         print(f"Starting epoch {epoch} ...")
         for train_batch in tqdm.tqdm(data_train):
@@ -68,16 +85,17 @@ def main(
             loss_train, model, optimizer_state = train_step(
                 train_key, train_batch, model, optimizer_state
             )
-            losses_train.append(float(loss_train))
 
             loss_valid = loss_fn(key, data_valid, model)
-            losses_valid.append(float(loss_valid))
 
-    plt.plot(losses_train, label="train")
-    plt.plot(losses_valid, label="valid")
-    plt.yscale("log")
-    plt.legend()
-    plt.show()
+            wandb.log(
+                {
+                    "loss_train": loss_train,
+                    "loss_valid": loss_valid,
+                }
+            )
+
+    wandb.finish()
 
 
 if __name__ == "__main__":
