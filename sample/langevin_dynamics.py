@@ -188,3 +188,28 @@ def sample(
     )
 
     return sample
+
+
+def score_function(
+    probability: Callable[[np.array], np.array]
+) -> Callable[[np.array, np.array], np.array]:
+    """
+    Compute the score function for x + z.
+    With z ~ N(0, sigma^2).and x = 0 or 1.
+    Given the probability density function of x = 1 given x + z.
+
+    Parameters
+    ---
+    probability: Callable[[np.array], np.array]
+        Probability density function.
+
+    Returns
+    ---
+    Callable[[np.array, np.array], np.array]
+        Score function.
+    """
+
+    def score(x_noise: np.array, sigma: np.array) -> np.array:
+        return probability(x_noise, sigma) * 1 / sigma**2 - x_noise / sigma**2
+
+    return score
