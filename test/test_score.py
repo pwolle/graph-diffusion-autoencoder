@@ -3,8 +3,8 @@ import jax.scipy.stats as stats
 import jax.random as jrandom
 import matplotlib.pyplot as plt
 
-from langevin_dynamics import sample
-from langevin_dynamics import score_function
+from sample import sample
+from sample import score_function
 
 
 def test_probability(x, sigma):
