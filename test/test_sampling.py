@@ -5,7 +5,7 @@ import jax.random as jrandom
 import jax.scipy.stats as stats
 import matplotlib.pyplot as plt
 
-from langevin_dynamics import sample
+from sample import sample
 from typing import Tuple
 
 
