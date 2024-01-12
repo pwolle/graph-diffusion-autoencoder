@@ -1,17 +1,83 @@
+import jax
+import jax.random as jrandom
+import matplotlib.pyplot as plt
+import memmpy
+import optax
+import tqdm
+
+from data import gdb13_graph_memmap
+from models import BinaryEdgesModel, score_interpolation_loss
+
+
 def main(
     natoms: int = 10,
     batch_size: int = 64,
     epochs: int = 100,
-    learning_rate: float = 3e-4,
+    lr: float = 3e-4,
     nlayer: int = 3,
+    dim: int = 128,
+    dim_at: int = 128,
     seed: int = 0,
-    hidden_dim: int = 128,
-    attention_dim: int = 128,
 ):
-    from models import BinaryEdgesModel, score_interpolation_loss
-    from data import gdb13_graph_memmap
+    key = jrandom.PRNGKey(seed)
+    key, model_key = jrandom.split(key)
 
-    pass
+    print("Initializing model ...")
+    model = BinaryEdgesModel(
+        model_key,
+        nlayer=nlayer,
+        dim=dim,
+        dim_at=dim_at,
+    )
+
+    optimizer = optax.adam(lr)
+    optimizer_state = optimizer.init(model)  # type: ignore
+    print("Model initialized.")
+
+    @jax.jit
+    def loss_fn(key, adjacencies, model):
+        return score_interpolation_loss(key, adjacencies, jax.vmap(model))
+
+    @jax.jit
+    def train_step(key, adjacencies, model, optimizer_state):
+        grad_fn = jax.value_and_grad(loss_fn, argnums=2)
+        loss, grad = grad_fn(key, adjacencies, model)
+
+        updates, optimizer_state = optimizer.update(grad, optimizer_state)
+        model = optax.apply_updates(model, updates)
+        return loss, model, optimizer_state
+
+    print("Loading data ...")
+    data = gdb13_graph_memmap("data", natoms)
+
+    data_train = memmpy.split(data, "train", shuffle=True, seed=seed)  # type: ignore
+    data_train = memmpy.Batched(data_train, batch_size)
+
+    data_valid = memmpy.split(data, "valid", shuffle=True, seed=seed)  # type: ignore
+    data_valid = memmpy.unwrap(data_valid)[:1024]
+
+    losses_train = []
+    losses_valid = []
+
+    for epoch in range(epochs):
+        print(f"Starting epoch {epoch} ...")
+        for train_batch in tqdm.tqdm(data_train):
+            train_batch = memmpy.unwrap(train_batch)
+
+            key, train_key = jrandom.split(key)
+            loss_train, model, optimizer_state = train_step(
+                train_key, train_batch, model, optimizer_state
+            )
+            losses_train.append(float(loss_train))
+
+            loss_valid = loss_fn(key, data_valid, model)
+            losses_valid.append(float(loss_valid))
+
+    plt.plot(losses_train, label="train")
+    plt.plot(losses_valid, label="valid")
+    plt.yscale("log")
+    plt.legend()
+    plt.show()
 
 
 if __name__ == "__main__":
@@ -19,8 +85,22 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--natoms", type=int, default=10)
+    parser.add_argument("--batch_size", type=int, default=128)
+    parser.add_argument("--epochs", type=int, default=1)
+    parser.add_argument("--lr", type=float, default=3e-4)
+    parser.add_argument("--nlayer", type=int, default=2)
+    parser.add_argument("--dim", type=int, default=128)
+    parser.add_argument("--dim_at", type=int, default=8)
+    parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
 
     main(
         natoms=args.natoms,
+        batch_size=args.batch_size,
+        epochs=args.epochs,
+        lr=args.lr,
+        nlayer=args.nlayer,
+        dim=args.dim,
+        dim_at=args.dim_at,
+        seed=args.seed,
     )

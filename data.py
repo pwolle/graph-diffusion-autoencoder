@@ -1,15 +1,14 @@
+import itertools
 import os
 import tarfile
+import tempfile
 
 import memmpy
-import wget
-import itertools
-from rdkit import Chem
-
+import numpy as np
 import tqdm
+import wget
+from rdkit import Chem
 from typeguard import typechecked
-
-import tempfile
 
 
 @typechecked
@@ -76,7 +75,7 @@ def gdb13_graphs(path: str, natoms: int = 7):
         yield adj.astype(bool)
 
 
-def gdb13_graph_memmap(path: str, natoms: int = 7):
+def gdb13_graph_memmap(path: str, natoms: int = 7) -> np.memmap:
     path_smiles = os.path.join(path, "gdb13_smiles")
     path_memmap = os.path.join(path, "gdb13_memmap")
 
