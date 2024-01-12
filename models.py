@@ -1,7 +1,7 @@
 import flarejax as fj
-
-import jax.nn as jnn
+import jax
 import jax.lax as lax
+import jax.nn as jnn
 import jax.numpy as jnp
 import jax.random as jrandom
 import jax.scipy.stats as jstats
@@ -33,9 +33,8 @@ class Linear(fj.Module):
 def layer_norm(x, axis=-1):
     mean = jnp.mean(x, axis=axis, keepdims=True)
     var = jnp.var(x, axis=axis, keepdims=True)
-    var = jnp.maximum(var, 1e-6)
-    inv = lax.rsqrt(var)
-    return (x - mean) / inv
+    inv = lax.rsqrt(var + 1e-6)
+    return (x - mean) * inv
 
 
 class Sequential(fj.ModuleList):
@@ -64,7 +63,7 @@ def fourier_features(x, n=32):
 def ratio_encoding(binary_with_noise, sigma, prior=0.5):
     p0 = jstats.norm.pdf(binary_with_noise, loc=0, scale=sigma) * prior
     p1 = jstats.norm.pdf(binary_with_noise, loc=1, scale=sigma) * (1 - prior)
-    return p1 / (p0 + p1)
+    return p1 / (p0 + p1 + 1e-6)
 
 
 def set_diagonal(x, value):
@@ -82,7 +81,6 @@ class InputLayer(fj.Module):
         self.dim = dim
         self.prior = prior
 
-        # self.linear = Linear(key, 3 * dim, dim)
         key1, key2, key3 = jrandom.split(key, 3)
         self.mlp = Sequential(
             Linear(key1, 3 * dim, dim),
@@ -116,13 +114,14 @@ class GCNLayer(fj.Module):
         self.linear = Linear(key, dim_in, dim)
 
     def __call__(self, e, v):
+        r = v
         v = self.linear(v)
         v = layer_norm(v)
         v = jnn.relu(v)
 
         v = e @ v
         v = layer_norm(v)
-        return v
+        return v + r
 
 
 class OutputLayer(fj.Module):
@@ -162,7 +161,6 @@ class OutputLayer(fj.Module):
 
         edge_features = edge_features + edge_features.transpose(1, 0, 2)
         edge_features = edge_features / 2**0.5
-        edge_features = set_diagonal(edge_features, 0)
         return edge_features
 
 
@@ -184,7 +182,9 @@ class BinaryEdgesModel(fj.Module):
             vertex_features = layer(noisy_adjacency, vertex_features)
 
         binary_logits = self.output_layer(prob_adjacency, vertex_features)
-        return binary_logits[..., 0]
+        binary_logits = binary_logits[..., 0]
+        binary_logits = set_diagonal(binary_logits, 0)
+        return binary_logits
 
 
 def symmetric_normal(
@@ -200,10 +200,10 @@ def symmetric_normal(
 
 
 def uniform_low_discrepancy(key, size: int, minval, maxval):
-    assert minval < maxval
+    # assert minval < maxval
 
     step = (maxval - minval) / size
-    bins = jnp.arange(minval, maxval, step, dtype=jnp.float32)
+    bins = jnp.linspace(minval, maxval, size, dtype=jnp.float32)
 
     x = jrandom.uniform(
         key,
@@ -215,9 +215,10 @@ def uniform_low_discrepancy(key, size: int, minval, maxval):
     return bins + x
 
 
+# @functools.partial(jax.jit, static_argnums=1)
 def random_sigma(key, size: int, minval: float = 1e-2, maxval: float = 1e2):
-    assert minval > 0
-    assert minval < maxval
+    # assert minval > 0
+    # assert minval < maxval
 
     x = uniform_low_discrepancy(
         key,
@@ -229,8 +230,7 @@ def random_sigma(key, size: int, minval: float = 1e-2, maxval: float = 1e2):
 
 
 def bce_logits(binary, logits):
-    clipped = jnp.clip(logits, 0, None)
-    return clipped - logits * binary + jnn.log_sigmoid(-jnp.abs(logits))
+    return -jnn.log_sigmoid(logits) * binary - jnn.log_sigmoid(-logits) * (1 - binary)
 
 
 def score_interpolation_loss(key, adjacencies, model):
@@ -244,34 +244,48 @@ def score_interpolation_loss(key, adjacencies, model):
 
     adjacencies_tilde = adjacencies + noise * sigma[..., None, None]
     adjacencies_hat = model(adjacencies_tilde, sigma)
-    adjacencies_hat = jnn.sigmoid(adjacencies_hat)
 
     assert adjacencies_hat.shape == adjacencies.shape
 
     loss = bce_logits(adjacencies, adjacencies_hat)
-    loss = loss.mean(axis=(1, 2))
-    return loss.sum()
+    return loss.mean()
+
+
+def get_predictions(key, adjacencies, model):
+    key_noise, key_sigma = jrandom.split(key, 2)
+    noise = symmetric_normal(key_noise, adjacencies.shape)
+
+    batch_size = adjacencies.shape[0]
+    sigma = random_sigma(key_sigma, batch_size)
+
+    adjacencies_tilde = adjacencies + noise * sigma[..., None, None]
+    adjacencies_hat = model(adjacencies_tilde, sigma)
+    return jnn.sigmoid(adjacencies_hat)
+
+
+def accuracy(binary, logits):
+    return (binary == (logits > 0)).mean()
 
 
 def main():
-    key = jrandom.PRNGKey(0)
-    key, subkey = jrandom.split(key)
+    # key = jrandom.PRNGKey(0)
+    # key, subkey = jrandom.split(key)
 
-    e = jrandom.uniform(subkey, (7, 7), dtype=jnp.float32)
-    e = e + e.T
-    e = (e > 1.3).astype(jnp.float32)
+    # e = jrandom.uniform(subkey, (7, 7), dtype=jnp.float32)
+    # e = e + e.T
+    # e = (e > 1.3).astype(jnp.float32)
 
-    key, subkey = jrandom.split(key)
-    z = jrandom.normal(subkey, e.shape, dtype=jnp.float32)
-    z = (z + z.T) / 2**0.5
-    e_tilde = e + z
+    # key, subkey = jrandom.split(key)
+    # z = jrandom.normal(subkey, e.shape, dtype=jnp.float32)
+    # z = (z + z.T) / 2**0.5
+    # e_tilde = e + z
 
-    # print(e_tilde.shape)
+    # # print(e_tilde.shape)
 
-    model = BinaryEdgesModel(key, 1, 32, 2)
+    # model = BinaryEdgesModel(key, 1, 32, 2)
 
-    e_hat = model(e_tilde, jnp.array([1.0]))
-    print(e_hat.shape)
+    # e_hat = model(e_tilde, jnp.array([1.0]))
+    # print(e_hat.shape)
     # import matplotlib.pyplot as plt
 
     # key = jrandom.PRNGKey(0)
@@ -281,6 +295,15 @@ def main():
     # plt.hist(v, bins=100)
     # plt.yscale("log")
     # plt.show()
+
+    @jax.jit
+    def test(x):
+        key = jrandom.PRNGKey(0)
+        s = random_sigma(key, x.shape[0])
+        return s
+
+    x = jnp.arange(1024)
+    print(test(x))
 
 
 if __name__ == "__main__":
