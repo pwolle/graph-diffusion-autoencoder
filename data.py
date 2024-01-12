@@ -9,6 +9,7 @@ import tqdm
 import wget
 from rdkit import Chem
 from typeguard import typechecked
+from typing import Generator
 
 
 @typechecked
@@ -17,7 +18,10 @@ def countlines(path: str) -> int:
 
 
 @typechecked
-def gdb13_graphs(path: str, natoms: int = 7):
+def gdb13_graphs(
+    path: str,
+    natoms: int = 7,
+) -> Generator[np.ndarray, None, None]:
     """
     Generate binary adjacency matricees from smiles files.
 
@@ -61,14 +65,10 @@ def gdb13_graphs(path: str, natoms: int = 7):
     else:
         print("GDB13 files found.")
 
-    lines1, lines2 = countlines(path1), countlines(path2)
-    print(f"Reading {lines1 + lines2} SMILES from {path1} and {path2} ...")
+    nlines = countlines(path1) + countlines(path2)
+    print(f"Reading {nlines} SMILES from {path1} and {path2} ...")
 
-    bar = tqdm.tqdm(
-        itertools.chain(open(path1), open(path2)),
-        total=lines1 + lines2,
-    )
-
+    bar = tqdm.tqdm(itertools.chain(open(path1), open(path2)), total=nlines)
     for line in bar:
         mol = Chem.MolFromSmiles(line)  # type: ignore
         adj = Chem.GetAdjacencyMatrix(mol, useBO=True)  # type: ignore
