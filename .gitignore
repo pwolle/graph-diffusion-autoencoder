@@ -163,6 +163,7 @@ cython_debug/
 # -- Additions for this project --
 # ignore files containing raw data
 *.npy
+*.npz
 *.smi
 data/
 __pycache__/

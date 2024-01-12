@@ -9,6 +9,7 @@ import tqdm
 import wget
 from rdkit import Chem
 from typeguard import typechecked
+from typing import Generator
 
 
 @typechecked
@@ -17,7 +18,10 @@ def countlines(path: str) -> int:
 
 
 @typechecked
-def gdb13_graphs(path: str, natoms: int = 7):
+def gdb13_graphs(
+    path: str,
+    natoms: int = 7,
+) -> Generator[np.ndarray, None, None]:
     """
     Generate binary adjacency matricees from smiles files.
 
@@ -61,14 +65,10 @@ def gdb13_graphs(path: str, natoms: int = 7):
     else:
         print("GDB13 files found.")
 
-    lines1, lines2 = countlines(path1), countlines(path2)
-    print(f"Reading {lines1 + lines2} SMILES from {path1} and {path2} ...")
+    nlines = countlines(path1) + countlines(path2)
+    print(f"Reading {nlines} SMILES from {path1} and {path2} ...")
 
-    bar = tqdm.tqdm(
-        itertools.chain(open(path1), open(path2)),
-        total=lines1 + lines2,
-    )
-
+    bar = tqdm.tqdm(itertools.chain(open(path1), open(path2)), total=nlines)
     for line in bar:
         mol = Chem.MolFromSmiles(line)  # type: ignore
         adj = Chem.GetAdjacencyMatrix(mol, useBO=True)  # type: ignore
@@ -91,31 +91,3 @@ def gdb13_graph_memmap(path: str, natoms: int = 7) -> np.memmap:
             memfile.append(adj)
 
     return memmpy.read_vector(path_memmap, name)
-
-
-def _test():
-    data = gdb13_graph_memmap("data", 10)
-    print(data.shape)
-    # for adjacency in gdb13_graphs("data", 13):
-    #     # print(repr(adjacency))
-    #     # break
-    #     pass
-
-    # from tqdm import tqdm
-
-    # import time
-
-    # # Create a range of values for the loop
-    # for i in tqdm(range(10), desc="Processing"):
-    #     # Simulate some work
-    #     time.sleep(0.5)
-
-    #     # Update the description during the loop
-    #     tqdm.set_description(f"Processing item {i}")
-
-    # # The loop is complete
-    # print("Loop finished!")
-
-
-if __name__ == "__main__":
-    _test()
