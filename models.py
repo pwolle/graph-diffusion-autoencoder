@@ -61,17 +61,20 @@ def fourier_features(x, n=32):
     )
 
 
-def ratio_encoding(e, sigma, prior=0.5):
-    p0 = jstats.norm.pdf(e, loc=0, scale=sigma) * prior
-    p1 = jstats.norm.pdf(e, loc=1, scale=sigma) * (1 - prior)
+def ratio_encoding(binary_with_noise, sigma, prior=0.5):
+    p0 = jstats.norm.pdf(binary_with_noise, loc=0, scale=sigma) * prior
+    p1 = jstats.norm.pdf(binary_with_noise, loc=1, scale=sigma) * (1 - prior)
     return p1 / (p0 + p1)
 
 
-def set_diagonal(e, value):
-    n = e.shape[-1]
+def set_diagonal(x, value):
+    assert x.ndim == 2
+    assert x.shape[0] == x.shape[1]
+
+    n = x.shape[-1]
     r = jnp.arange(n, dtype=jnp.int32)
-    e = e.at[r, r].set(value)
-    return e
+    x = x.at[r, r].set(value)
+    return x
 
 
 class InputLayer(fj.Module):
@@ -91,19 +94,18 @@ class InputLayer(fj.Module):
             Linear(key3, dim, dim),
         )
 
-    def __call__(self, e, sigma):
-        e = ratio_encoding(e, sigma, self.prior)
+    def __call__(self, noisy_adjacency, sigma):
+        prob_adjacency = ratio_encoding(noisy_adjacency, sigma, self.prior)
+        prob_adjacency = set_diagonal(noisy_adjacency, 1)
 
-        d = jnp.sum(e, axis=-1, keepdims=True)
+        d = jnp.sum(prob_adjacency, axis=-1, keepdims=True)
         d = fourier_features(d, self.dim * 2)
 
         s = fourier_features(sigma, self.dim)
         s = jnp.repeat(s[None], d.shape[-2], axis=-2)
 
         v = self.mlp(jnp.concatenate([d, s], axis=-1))
-
-        e = set_diagonal(e, 1)
-        return e, v
+        return prob_adjacency, v
 
 
 class GCNLayer(fj.Module):
@@ -143,18 +145,25 @@ class OutputLayer(fj.Module):
             Linear(key3, dim, 1),
         )
 
-    def __call__(self, e, v):
-        v = self.proj(v).reshape(-1, self.dim, self.dim_at)
-        a = jnp.einsum("ikh,jkh->ijk", v, v)
-        a = a / jnp.sqrt(self.dim_at)
+    def __call__(self, prob_adjacency, vertex_features):
+        vertex_features = self.proj(vertex_features)
+        vertex_features = vertex_features.reshape(-1, self.dim, self.dim_at)
 
-        e = fourier_features(e[..., None], self.dim)
-        e = jnp.concatenate([e, a], axis=-1)
-        e = self.mlp(e)
+        attention = jnp.einsum(
+            "ikh,jkh->ijk",
+            vertex_features,
+            vertex_features,
+        )
+        attention = attention / jnp.sqrt(self.dim_at)
 
-        e = (e + e.transpose(1, 0, 2)) / 2**0.5
-        e = set_diagonal(e, 0)
-        return e
+        edge_features = fourier_features(prob_adjacency[..., None], self.dim)
+        edge_features = jnp.concatenate([edge_features, attention], axis=-1)
+        edge_features = self.mlp(edge_features)
+
+        edge_features = edge_features + edge_features.transpose(1, 0, 2)
+        edge_features = edge_features / 2**0.5
+        edge_features = set_diagonal(edge_features, 0)
+        return edge_features
 
 
 class BinaryEdgesModel(fj.Module):
@@ -168,14 +177,14 @@ class BinaryEdgesModel(fj.Module):
 
         self.output_layer = OutputLayer(key, dim, dim, dim_at)
 
-    def __call__(self, e, sigma):
-        e, v = self.input_layer(e, sigma)
+    def __call__(self, noisy_adjacency, sigma):
+        prob_adjacency, vertex_features = self.input_layer(noisy_adjacency, sigma)
 
         for layer in self.gcn_layers.modules:
-            v = layer(e, v)
+            vertex_features = layer(noisy_adjacency, vertex_features)
 
-        e = self.output_layer(e, v)
-        return e[..., 0]
+        binary_logits = self.output_layer(prob_adjacency, vertex_features)
+        return binary_logits[..., 0]
 
 
 def symmetric_normal(
@@ -203,7 +212,6 @@ def uniform_low_discrepancy(key, size: int, minval, maxval):
         minval=0,
         maxval=step,
     )
-
     return bins + x
 
 
@@ -237,41 +245,41 @@ def score_interpolation_loss(key, adjacencies, model):
 
     # binary cross entropy
     loss = 0
-    loss = loss + jnp.sum(adjacencies * jnp.log(adjacencies_hat + 1e-6))
-    loss = loss + jnp.sum((1 - adjacencies) * jnp.log(1 - adjacencies_hat + 1e-6))
+    loss = loss + adjacencies * jnp.log(adjacencies_hat + 1e-6)
+    loss = loss + (1 - adjacencies) * jnp.log(1 - adjacencies_hat + 1e-6)
 
     loss = loss.mean(axis=(1, 2))
     return loss.sum()
 
 
 def main():
-    # key = jrandom.PRNGKey(0)
-    # key, subkey = jrandom.split(key)
-
-    # e = jrandom.uniform(subkey, (7, 7), dtype=jnp.float32)
-    # e = e + e.T
-    # e = (e > 1.3).astype(jnp.float32)
-
-    # key, subkey = jrandom.split(key)
-    # z = jrandom.normal(subkey, e.shape, dtype=jnp.float32)
-    # z = (z + z.T) / 2**0.5
-    # e_tilde = e + z
-
-    # # print(e_tilde.shape)
-
-    # model = BinaryEdgesModel(key, 1, 32, 2)
-
-    # e_hat = model(e_tilde, jnp.array([1.0]))
-    # print(e_hat.shape)
-    import matplotlib.pyplot as plt
-
     key = jrandom.PRNGKey(0)
+    key, subkey = jrandom.split(key)
 
-    v = random_sigma(key, 1024)
+    e = jrandom.uniform(subkey, (7, 7), dtype=jnp.float32)
+    e = e + e.T
+    e = (e > 1.3).astype(jnp.float32)
 
-    plt.hist(v, bins=100)
-    plt.yscale("log")
-    plt.show()
+    key, subkey = jrandom.split(key)
+    z = jrandom.normal(subkey, e.shape, dtype=jnp.float32)
+    z = (z + z.T) / 2**0.5
+    e_tilde = e + z
+
+    # print(e_tilde.shape)
+
+    model = BinaryEdgesModel(key, 1, 32, 2)
+
+    e_hat = model(e_tilde, jnp.array([1.0]))
+    print(e_hat.shape)
+    # import matplotlib.pyplot as plt
+
+    # key = jrandom.PRNGKey(0)
+
+    # v = random_sigma(key, 1024)
+
+    # plt.hist(v, bins=100)
+    # plt.yscale("log")
+    # plt.show()
 
 
 if __name__ == "__main__":
