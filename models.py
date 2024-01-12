@@ -228,6 +228,11 @@ def random_sigma(key, size: int, minval: float = 1e-2, maxval: float = 1e2):
     return jnp.exp(x)
 
 
+def bce_logits(binary, logits):
+    clipped = jnp.clip(logits, 0, None)
+    return clipped - logits * binary + jnn.log_sigmoid(-jnp.abs(logits))
+
+
 def score_interpolation_loss(key, adjacencies, model):
     assert adjacencies.ndim == 3
 
@@ -243,11 +248,7 @@ def score_interpolation_loss(key, adjacencies, model):
 
     assert adjacencies_hat.shape == adjacencies.shape
 
-    # binary cross entropy
-    loss = 0
-    loss = loss + adjacencies * jnp.log(adjacencies_hat + 1e-6)
-    loss = loss + (1 - adjacencies) * jnp.log(1 - adjacencies_hat + 1e-6)
-
+    loss = bce_logits(adjacencies, adjacencies_hat)
     loss = loss.mean(axis=(1, 2))
     return loss.sum()
 
