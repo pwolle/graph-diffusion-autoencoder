@@ -200,8 +200,6 @@ def symmetric_normal(
 
 
 def uniform_low_discrepancy(key, size: int, minval, maxval):
-    # assert minval < maxval
-
     step = (maxval - minval) / size
     bins = jnp.linspace(minval, maxval, size, dtype=jnp.float32)
 
@@ -215,11 +213,7 @@ def uniform_low_discrepancy(key, size: int, minval, maxval):
     return bins + x
 
 
-# @functools.partial(jax.jit, static_argnums=1)
 def random_sigma(key, size: int, minval: float = 1e-2, maxval: float = 1e2):
-    # assert minval > 0
-    # assert minval < maxval
-
     x = uniform_low_discrepancy(
         key,
         size,
@@ -265,46 +259,3 @@ def get_predictions(key, adjacencies, model):
 
 def accuracy(binary, logits):
     return (binary == (logits > 0)).mean()
-
-
-def main():
-    # key = jrandom.PRNGKey(0)
-    # key, subkey = jrandom.split(key)
-
-    # e = jrandom.uniform(subkey, (7, 7), dtype=jnp.float32)
-    # e = e + e.T
-    # e = (e > 1.3).astype(jnp.float32)
-
-    # key, subkey = jrandom.split(key)
-    # z = jrandom.normal(subkey, e.shape, dtype=jnp.float32)
-    # z = (z + z.T) / 2**0.5
-    # e_tilde = e + z
-
-    # # print(e_tilde.shape)
-
-    # model = BinaryEdgesModel(key, 1, 32, 2)
-
-    # e_hat = model(e_tilde, jnp.array([1.0]))
-    # print(e_hat.shape)
-    # import matplotlib.pyplot as plt
-
-    # key = jrandom.PRNGKey(0)
-
-    # v = random_sigma(key, 1024)
-
-    # plt.hist(v, bins=100)
-    # plt.yscale("log")
-    # plt.show()
-
-    @jax.jit
-    def test(x):
-        key = jrandom.PRNGKey(0)
-        s = random_sigma(key, x.shape[0])
-        return s
-
-    x = jnp.arange(1024)
-    print(test(x))
-
-
-if __name__ == "__main__":
-    main()

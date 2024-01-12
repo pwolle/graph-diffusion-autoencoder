@@ -91,31 +91,3 @@ def gdb13_graph_memmap(path: str, natoms: int = 7) -> np.memmap:
             memfile.append(adj)
 
     return memmpy.read_vector(path_memmap, name)
-
-
-def _test():
-    data = gdb13_graph_memmap("data", 10)
-    print(data.shape)
-    # for adjacency in gdb13_graphs("data", 13):
-    #     # print(repr(adjacency))
-    #     # break
-    #     pass
-
-    # from tqdm import tqdm
-
-    # import time
-
-    # # Create a range of values for the loop
-    # for i in tqdm(range(10), desc="Processing"):
-    #     # Simulate some work
-    #     time.sleep(0.5)
-
-    #     # Update the description during the loop
-    #     tqdm.set_description(f"Processing item {i}")
-
-    # # The loop is complete
-    # print("Loop finished!")
-
-
-if __name__ == "__main__":
-    _test()
