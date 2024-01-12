@@ -1,4 +1,4 @@
-from read_smiles import save_with_memmpy, adj_gen
+from data import save_with_memmpy, gdb13_graphs
 import memmpy
 
 # main
