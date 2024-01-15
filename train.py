@@ -1,6 +1,5 @@
 import jax
 import jax.random as jrandom
-import matplotlib.pyplot as plt
 import memmpy
 import optax
 import tqdm
@@ -53,7 +52,7 @@ def main(
     data = gdb13_graph_memmap("data", natoms)
 
     data_train = memmpy.split(data, "train", shuffle=True, seed=seed)  # type: ignore
-    data_train = memmpy.Batched(data_train, batch_size)
+    data_train = memmpy.Batched(data_train, batch_size, True)
 
     data_valid = memmpy.split(data, "valid", shuffle=True, seed=seed)  # type: ignore
     data_valid = memmpy.unwrap(data_valid)[:1024]
@@ -102,9 +101,9 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--natoms", type=int, default=11)
-    parser.add_argument("--batch_size", type=int, default=128)
-    parser.add_argument("--epochs", type=int, default=2)
+    parser.add_argument("--natoms", type=int, default=10)
+    parser.add_argument("--batch_size", type=int, default=1024)
+    parser.add_argument("--epochs", type=int, default=500)
     parser.add_argument("--lr", type=float, default=3e-4)
     parser.add_argument("--nlayer", type=int, default=2)
     parser.add_argument("--dim", type=int, default=128)
