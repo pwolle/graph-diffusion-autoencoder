@@ -161,9 +161,9 @@ class OutputLayer(fj.Module):
         edge_features = jnp.concatenate([edge_features, attention], axis=-1)
         edge_features = self.mlp(edge_features)
 
-        edge_features = edge_features + edge_features.transpose(1, 0, 2)
-        edge_features = edge_features / 2**0.5
-        return edge_features
+        edge_features = edge_features[..., 0]
+        edge_features = edge_features + edge_features.T
+        return set_diagonal(edge_features, 0)
 
 
 class OutputLayer2(fj.Module):
@@ -209,13 +209,14 @@ class OutputLayer2(fj.Module):
 
 class BinaryEdgesModel(fj.Module):
     def __init__(self, key, nlayer, dim):
-        key, subkey = jrandom.split(key)
-        self.input_layer = InputLayer(subkey, dim)
+        key_input, key_gcn, key_output = jrandom.split(key, 3)
+        self.input_layer = InputLayer(key_input, dim)
 
         self.gcn_layers = fj.ModuleList(
-            *[GCNLayer(k, dim, dim) for k in jrandom.split(key, nlayer)],
+            *[GCNLayer(k, dim, dim) for k in jrandom.split(key_gcn, nlayer)],
         )
-        self.output_layer = OutputLayer2(key, dim, dim)
+        # self.output_layer = OutputLayer2(key, dim, dim)
+        self.output_layer = OutputLayer(key_output, dim, dim, 8)
 
     def __call__(self, noisy_adjacency, sigma):
         prob_adjacency, vertex_features = self.input_layer(
@@ -256,7 +257,7 @@ def uniform_low_discrepancy(key, size: int, minval, maxval):
     return bins + x
 
 
-def random_sigma(key, size: int, minval: float = 1e-3, maxval: float = 20):
+def random_sigma(key, size: int, minval: float = 1e-2, maxval: float = 1e2):
     x = uniform_low_discrepancy(
         key,
         size,
