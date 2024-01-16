@@ -17,7 +17,6 @@ def main(
     lr: float = 3e-4,
     nlayer: int = 3,
     dim: int = 128,
-    dim_at: int = 128,
     seed: int = 0,
 ):
     key = jrandom.PRNGKey(seed)
@@ -28,7 +27,6 @@ def main(
         model_key,
         nlayer=nlayer,
         dim=dim,
-        dim_at=dim_at,
     )
 
     optimizer = optax.adam(lr)
@@ -68,7 +66,6 @@ def main(
             "lr": lr,
             "nlayer": nlayer,
             "dim": dim,
-            "dim_at": dim_at,
             "seed": seed,
             "start time": timestamp,
         },
@@ -102,12 +99,11 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--natoms", type=int, default=10)
-    parser.add_argument("--batch_size", type=int, default=1024)
-    parser.add_argument("--epochs", type=int, default=500)
+    parser.add_argument("--batch_size", type=int, default=32)
+    parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--lr", type=float, default=3e-4)
     parser.add_argument("--nlayer", type=int, default=2)
     parser.add_argument("--dim", type=int, default=128)
-    parser.add_argument("--dim_at", type=int, default=8)
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
 
@@ -118,6 +114,5 @@ if __name__ == "__main__":
         lr=args.lr,
         nlayer=args.nlayer,
         dim=args.dim,
-        dim_at=args.dim_at,
         seed=args.seed,
     )

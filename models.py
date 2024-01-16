@@ -97,8 +97,8 @@ class InputLayer(fj.Module):
         prob_adjacency = ratio_encoding(noisy_adjacency, sigma, self.prior)
         prob_adjacency = set_diagonal(noisy_adjacency, 1)
 
-        degree = jnp.sum(prob_adjacency, axis=-1, keepdims=True)
-        degree = fourier_features(degree, self.dim * 2)
+        degree = jnp.sum(prob_adjacency, axis=-1, keepdims=True) - 5
+        degree = fourier_features(degree, self.dim)
 
         sigma_encoded = fourier_features(sigma, self.dim)[None]
         sigma_encoded = jnp.repeat(sigma_encoded, degree.shape[-2], axis=-2)
