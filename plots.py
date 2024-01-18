@@ -66,16 +66,23 @@ def color_mapping(graph: nx.Graph,
 
     Returns
     ---
-    np.array
-        Numpy array with strings as elements. Each string correspond to one color of one node
+    tuple(np.array,str)
+        np.array
+            Numpy array with strings as elements. Each string correspond to one color of one node
+        str
+            Gives the status of graph, whether it is disconnected, or has nodes with too high degree, or none of them (normal).
     """
 
     #Find the number of nodes of given graph
     num_nodes = len(graph.nodes)
+
+    #Sets status of graph, whether it is disconnected, or has nodes with too high degree, or none of them (normal).
+    status = "normal"
     
     #If graph is disconnected, then color whole graph orange
     if not nx.is_connected(graph):
-        return np.array(["orange"]*num_nodes)
+        status = "disconnected"
+        return np.array(["orange"]*num_nodes), status
     
     # Initialize array with color blue and length of num_nodes
     color_map = np.array(["blue"] * num_nodes)
@@ -89,10 +96,13 @@ def color_mapping(graph: nx.Graph,
     #Find nodes whose degree is larger than max_degree
     new_color_nodes = nodes[degrees > max_degree]
 
+    if len(new_color_nodes) > 0:
+        status = "too_high"
+    
     #Color these nodes red
     color_map[new_color_nodes] = "red"
 
-    return color_map
+    return color_map, status
 
 
 def plotting(graphs: list[nx.Graph],
@@ -122,13 +132,25 @@ def plotting(graphs: list[nx.Graph],
     # Determine grid size
     grid_num = int(np.sqrt(len(graphs))) + 1
 
+    #Save number of graphs, where it is disconnected, or has nodes with too high degree, or none of both (normal).
+    stat_count = {"too_high":0, "disconnected":0, "normal":0}
+    
     fig, ax = plt.subplots(grid_num, grid_num)
 
+    #Plot each graph into the grid
     for graph, axis in zip(graphs, ax.ravel()):
-        color_map = color_mapping(graph, max_degree)
+        color_map, status = color_mapping(graph, max_degree)
+
+        #Add +1 to the status of the current graph
+        stat_count[status] += 1
+        
         nx.draw(graph, node_color=color_map, ax=axis, node_size=100 / grid_num)
 
+    #Delete unused axis
     for i in range(len(graphs), len(ax.ravel())):
         ax.ravel()[i].remove()
 
+    fig.suptitle(f"Normal: {stat_count['normal']}, Too high degree: {stat_count['too_high']}, Disconnected: {stat_count['disconnected']}")
+    plt.tight_layout()
+    #Save file 
     plt.savefig(f"{file_name}.pdf")
