@@ -19,8 +19,9 @@ def sigma_lower_bound(natoms=10):
     float
         Lower bound for the noise of the Langevin dynamics.
     """
-    normal = jax.scipy.stats.norm.cdf(0.5)
-    return 0.995 ** (2 / (natoms * (natoms - 1))) * 1 / normal
+    quartile = 0.995 ** (2 / (natoms * (natoms - 1)))
+    normal_quantile = jax.scipy.stats.norm.ppf(quartile)
+    return 1 / (2 * normal_quantile)
 
 
 @jax.jit
