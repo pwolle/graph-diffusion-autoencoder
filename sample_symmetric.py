@@ -11,7 +11,7 @@ from typing import Callable
 from models import symmetric_normal, set_diagonal
 
 
-@functools.partial(jax.jit, static_argnums=(2))
+# @functools.partial(jax.jit, static_argnums=(2))
 def langevin_dynamics_step(
     i: int,
     sample: tuple[np.ndarray, float, float, np.ndarray],
@@ -59,7 +59,7 @@ def langevin_dynamics_step(
     return value, sigma, step, key
 
 
-@functools.partial(jax.jit, static_argnums=(2))
+# @functools.partial(jax.jit, static_argnums=(2))
 def iterate_for_fixed_sigma(
     i: int,
     sample: tuple[np.ndarray, np.ndarray],
@@ -71,6 +71,7 @@ def iterate_for_fixed_sigma(
     step_size: float,
     num_iterations: int,
     sigmas: np.ndarray,
+    batch_size: int = 1,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Helper function for iteration over different noise (sigma).
@@ -115,25 +116,28 @@ def iterate_for_fixed_sigma(
     # Update the step size.
     step = step_size * sigma**2 / min_sigma**2
 
+    sigma_batch = np.ones((batch_size,)) * sigma
+
     # Update the samples.
     value, *_ = lax.fori_loop(
         0,
         num_iterations,
         langevin_dynamics_step,
-        (value, sigma, step, key),
+        (value, sigma_batch, step, key),
     )
 
     return value, key
 
 
-@typechecked
-@functools.partial(jax.jit, static_argnums=(1, 4))
+# @typechecked
+# @functools.partial(jax.jit, static_argnums=(1, 4))
 def sample(
     sigmas: np.ndarray,
     score: Callable[[np.ndarray, float], np.ndarray],
     step_size: float = 0.01,
     num_iterations: int = 1000,
-    shape: tuple = (2, 2),
+    natoms: int = 10,
+    batch_size: int = 1,
     key: jrandom.PRNGKey = jrandom.PRNGKey(0),
 ) -> np.ndarray:
     """
@@ -166,7 +170,7 @@ def sample(
     """
     # Initialize the samples.
     key, subkey = jrandom.split(key)
-    sample = symmetric_normal(key=subkey, shape=shape)
+    sample = symmetric_normal(key=subkey, shape=(batch_size, natoms, natoms))
 
     # Find the minimum standard deviation.
     min_std = sigmas[-1]
@@ -183,6 +187,7 @@ def sample(
         step_size=step_size,
         num_iterations=num_iterations,
         sigmas=sigmas,
+        batch_size=batch_size,
     )
 
     # Calculate the samples.
@@ -194,7 +199,7 @@ def sample(
     )
     # Set diagonal to zero.
 
-    sample = set_diagonal(sample, 0)
+    sample = jax.vmap(set_diagonal)(sample, np.zeros((batch_size,)))
     return sample
 
 
