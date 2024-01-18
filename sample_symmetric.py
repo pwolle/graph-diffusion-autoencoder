@@ -11,7 +11,7 @@ from typing import Callable
 from models import symmetric_normal, set_diagonal
 
 
-# @functools.partial(jax.jit, static_argnums=(2))
+@functools.partial(jax.jit, static_argnums=(2))
 def langevin_dynamics_step(
     i: int,
     sample: tuple[np.ndarray, float, float, np.ndarray],
@@ -59,7 +59,7 @@ def langevin_dynamics_step(
     return value, sigma, step, key
 
 
-# @functools.partial(jax.jit, static_argnums=(2))
+@functools.partial(jax.jit, static_argnums=(2, 7))
 def iterate_for_fixed_sigma(
     i: int,
     sample: tuple[np.ndarray, np.ndarray],
@@ -129,8 +129,8 @@ def iterate_for_fixed_sigma(
     return value, key
 
 
-# @typechecked
-# @functools.partial(jax.jit, static_argnums=(1, 4))
+@typechecked
+@functools.partial(jax.jit, static_argnums=(1, 4, 5))
 def sample(
     sigmas: np.ndarray,
     score: Callable[[np.ndarray, float], np.ndarray],
