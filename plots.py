@@ -154,3 +154,11 @@ def plotting(graphs: list[nx.Graph],
     plt.tight_layout()
     #Save file 
     plt.savefig(f"{file_name}.pdf")
+
+def plot(adjs: jnp.array
+         max_degree: int
+         file_name: str
+         )->None:
+
+    graphs = adj_to_graph(adjs)
+    plotting(graphs,max_degree,file_name)
