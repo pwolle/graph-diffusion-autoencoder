@@ -38,6 +38,21 @@ def layer_norm(x, axis=-1, eps=EPS_DEFAULT):
     return (x - mean) * inv
 
 
+class LayerNorm(fj.Module):
+    def __init__(self, dim, eps=EPS_DEFAULT):
+        self.dim = dim
+        self.eps = eps
+
+        self.w = fj.Param(jnp.ones((dim,)))
+        self.b = fj.Param(jnp.zeros((dim,)))
+
+    def __call__(self, x):
+        x = layer_norm(x)
+        x = x * self.w.data + self.b.data
+        return x
+        
+
+
 class Sequential(fj.ModuleList):
     def __call__(self, x):
         for module in self.modules:
@@ -49,8 +64,12 @@ class Sequential(fj.ModuleList):
 def fourier_features(x, n=32, eps=EPS_DEFAULT):
     assert n % 2 == 0
 
-    i = jnp.arange(n // 2, dtype=jnp.float32) - n / 4
-    i = 2 * jnp.pi * jnp.maximum(2**i, 1 / eps)
+    i = jnp.linspace(
+        jnp.maximum(-n / 4, jnp.log2(eps)),
+        jnp.minimum(n / 4, -jnp.log2(eps)),
+        n // 2,
+    )
+    i = 2 * jnp.pi * 2 ** i
 
     return jnp.concatenate(
         [
@@ -64,7 +83,7 @@ def fourier_features(x, n=32, eps=EPS_DEFAULT):
 def ratio_encoding(binary_with_noise, sigma, prior=0.5, eps=EPS_DEFAULT):
     p0 = jstats.norm.pdf(binary_with_noise, loc=0, scale=sigma) * prior
     p1 = jstats.norm.pdf(binary_with_noise, loc=1, scale=sigma) * (1 - prior)
-    return p1 / (p0 + p1 + eps)
+    return (p1 + eps) / (p0 + p1 + eps)
 
 
 def set_diagonal(x, value):
@@ -85,10 +104,10 @@ class InputLayer(fj.Module):
         key1, key2, key3 = jrandom.split(key, 3)
         self.mlp = Sequential(
             Linear(key1, 2 * dim, dim),
-            layer_norm,
+            LayerNorm(dim),
             jnn.relu,
             Linear(key2, dim, dim),
-            layer_norm,
+            LayerNorm(dim),
             jnn.relu,
             Linear(key3, dim, dim),
         )
@@ -113,60 +132,25 @@ class GCNLayer(fj.Module):
         self.dim_in = dim_in
         self.dim = dim
 
-        self.linear = Linear(key, dim_in, dim)
+        self.linear1 = Linear(key, dim_in, dim)
+        self.linear2 = Linear(key, dim, dim)
+        self.norm1 = LayerNorm(dim)
+        self.norm2 = LayerNorm(dim)
 
     def __call__(self, e, v):
         r = v
-        v = self.linear(v)
-        v = layer_norm(v)
+        v = self.linear1(v)
+        v = self.norm1(v)
         v = jnn.relu(v)
 
         v = e @ v
-        v = layer_norm(v)
+        v = self.linear2(v)
+        v = self.norm2(v)
+        v = jnn.relu(v)
         return v + r
 
 
 class OutputLayer(fj.Module):
-    def __init__(self, key, dim_in, dim, dim_at):
-        self.dim_in = dim_in
-        self.dim = dim
-        self.dim_at = dim_at
-
-        key, subkey = jrandom.split(key)
-        self.proj = Linear(subkey, dim_in, dim_at * dim)
-
-        key1, key2, key3 = jrandom.split(key, 3)
-        self.mlp = Sequential(
-            Linear(key1, 2 * dim, dim),
-            layer_norm,
-            jnn.relu,
-            Linear(key2, dim, dim),
-            layer_norm,
-            jnn.relu,
-            Linear(key3, dim, 1),
-        )
-
-    def __call__(self, prob_adjacency, vertex_features):
-        vertex_features = self.proj(vertex_features)
-        vertex_features = vertex_features.reshape(-1, self.dim, self.dim_at)
-
-        attention = jnp.einsum(
-            "ikh,jkh->ijk",
-            vertex_features,
-            vertex_features,
-        )
-        attention = attention / jnp.sqrt(self.dim_at)
-
-        edge_features = fourier_features(prob_adjacency[..., None], self.dim)
-        edge_features = jnp.concatenate([edge_features, attention], axis=-1)
-        edge_features = self.mlp(edge_features)
-
-        edge_features = edge_features[..., 0]
-        edge_features = edge_features + edge_features.T
-        return set_diagonal(edge_features, 0)
-
-
-class OutputLayer2(fj.Module):
     def __init__(self, key, dim_in, dim):
         self.dim_in = dim_in
         self.dim = dim
@@ -174,10 +158,10 @@ class OutputLayer2(fj.Module):
         key1, key2, key3 = jrandom.split(key, 3)
         self.mlp = Sequential(
             Linear(key1, 3 * dim, dim),
-            layer_norm,
+            LayerNorm(dim),
             jnn.relu,
             Linear(key2, dim, dim),
-            layer_norm,
+            LayerNorm(dim),
             jnn.relu,
             Linear(key3, dim, 1),
         )
@@ -215,8 +199,7 @@ class BinaryEdgesModel(fj.Module):
         self.gcn_layers = fj.ModuleList(
             *[GCNLayer(k, dim, dim) for k in jrandom.split(key_gcn, nlayer)],
         )
-        # self.output_layer = OutputLayer2(key, dim, dim)
-        self.output_layer = OutputLayer(key_output, dim, dim, 8)
+        self.output_layer = OutputLayer(key_output, dim, dim)
 
     def __call__(self, noisy_adjacency, sigma):
         prob_adjacency, vertex_features = self.input_layer(
@@ -227,7 +210,10 @@ class BinaryEdgesModel(fj.Module):
         for layer in self.gcn_layers.modules:
             vertex_features = layer(noisy_adjacency, vertex_features)
 
-        binary_logits = self.output_layer(prob_adjacency, vertex_features)
+        binary_logits = self.output_layer(
+            prob_adjacency,
+            vertex_features,
+        )
         return binary_logits
 
 
@@ -257,7 +243,7 @@ def uniform_low_discrepancy(key, size: int, minval, maxval):
     return bins + x
 
 
-def random_sigma(key, size: int, minval: float = 1e-2, maxval: float = 1e2):
+def random_sigma(key, size: int, minval: float = 1e-1, maxval: float = 1e1):
     x = uniform_low_discrepancy(
         key,
         size,
