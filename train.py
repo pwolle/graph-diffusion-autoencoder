@@ -19,6 +19,15 @@ def main(
     dim: int = 128,
     seed: int = 0,
 ):
+    print("Loading data ...")
+    data = gdb13_graph_memmap("data", natoms)
+
+    data_train = memmpy.split(data, "train", shuffle=True, seed=seed)  # type: ignore
+    data_train = memmpy.Batched(data_train, batch_size, True)
+
+    data_valid = memmpy.split(data, "valid", shuffle=True, seed=seed)  # type: ignore
+    data_valid = memmpy.unwrap(data_valid)[:1024 * 4]
+
     key = jrandom.PRNGKey(seed)
     key, model_key = jrandom.split(key)
 
@@ -29,7 +38,17 @@ def main(
         dim=dim,
     )
 
-    optimizer = optax.adam(lr)
+    # optimizer = optax.adam(lr)
+    # optimizer_state = optimizer.init(model)  # type: ignore
+    schedule = optax.warmup_cosine_decay_schedule(
+        init_value=1e-6,
+        peak_value=1e-3,
+        warmup_steps=50,
+        decay_steps=len(data_train) * epochs,
+        end_value=1e-5,
+    )
+
+    optimizer = optax.adamw(learning_rate=schedule, weight_decay=1e-5)
     optimizer_state = optimizer.init(model)  # type: ignore
     print("Model initialized.")
 
@@ -42,22 +61,18 @@ def main(
         grad_fn = jax.value_and_grad(loss_fn, argnums=2)
         loss, grad = grad_fn(key, adjacencies, model)
 
-        updates, optimizer_state = optimizer.update(grad, optimizer_state)
+        updates, optimizer_state = optimizer.update(
+            grad,
+            optimizer_state, 
+            model,
+        )
         model = optax.apply_updates(model, updates)
         return loss, model, optimizer_state
 
-    print("Loading data ...")
-    data = gdb13_graph_memmap("data", natoms)
-
-    data_train = memmpy.split(data, "train", shuffle=True, seed=seed)  # type: ignore
-    data_train = memmpy.Batched(data_train, batch_size, True)
-
-    data_valid = memmpy.split(data, "valid", shuffle=True, seed=seed)  # type: ignore
-    data_valid = memmpy.unwrap(data_valid)[:1024 * 4]
-
     timestamp = datetime.datetime.now()
     timestamp = timestamp.strftime("%Y-%m-%d %H:%M:%S")
-    wandb.init(
+    wandb.init(    )
+
         project="graph-diffusion-autoencoder",
         config={
             "natoms": natoms,
@@ -102,7 +117,7 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, default=1024)
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--lr", type=float, default=3e-4)
-    parser.add_argument("--nlayer", type=int, default=3)
+    parser.add_argument("--nlayer", type=int, default=2)
     parser.add_argument("--dim", type=int, default=256)
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
