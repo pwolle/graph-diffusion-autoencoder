@@ -45,7 +45,7 @@ def main(
         peak_value=1e-3,
         warmup_steps=50,
         decay_steps=len(data_train) * epochs,
-        end_value=1e-5,
+        end_value=1e-6,
     )
 
     optimizer = optax.adamw(learning_rate=schedule, weight_decay=1e-5)
@@ -71,8 +71,7 @@ def main(
 
     timestamp = datetime.datetime.now()
     timestamp = timestamp.strftime("%Y-%m-%d %H:%M:%S")
-    wandb.init(    )
-
+    wandb.init(
         project="graph-diffusion-autoencoder",
         config={
             "natoms": natoms,
