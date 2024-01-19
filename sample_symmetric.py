@@ -11,7 +11,7 @@ from typing import Callable
 from models import symmetric_normal, set_diagonal
 
 
-@functools.partial(jax.jit, static_argnums=(2))
+# @functools.partial(jax.jit, static_argnums=(2))
 def langevin_dynamics_step(
     i: int,
     sample: tuple[np.ndarray, float, float, np.ndarray],
@@ -59,7 +59,7 @@ def langevin_dynamics_step(
     return value, sigma, step, key
 
 
-@functools.partial(jax.jit, static_argnums=(2, 7))
+# @functools.partial(jax.jit, static_argnums=(2, 7))
 def iterate_for_fixed_sigma(
     i: int,
     sample: tuple[np.ndarray, np.ndarray],
@@ -130,7 +130,7 @@ def iterate_for_fixed_sigma(
 
 
 @typechecked
-@functools.partial(jax.jit, static_argnums=(1, 4, 5))
+# @functools.partial(jax.jit, static_argnums=(1, 4, 5))
 def sample(
     sigmas: np.ndarray,
     score: Callable[[np.ndarray, float], np.ndarray],
@@ -142,6 +142,8 @@ def sample(
 ) -> np.ndarray:
     """
     Sample from the distribution using Langevin dynamics.
+
+    Is jittable with static arguments: 1, 4, 5
 
     Parameters
     ---
@@ -220,7 +222,6 @@ def score_function(probability):
         Score function.
     """
 
-    @jax.jit
     def score(x_noise, sigma):
         prob = probability(x_noise, sigma)
         prob = jnn.sigmoid(prob)
