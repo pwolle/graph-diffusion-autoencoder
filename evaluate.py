@@ -1,11 +1,22 @@
 from sample_symmetric import score_function, sample
 from sigma_intevall import sigma_lower_bound, sigma_upper_bound
+from plots import round_adj, plot
 import functools
 import jax
 import jax.numpy as jnp
 
 
-def evaluate(model, n_atoms, batch_size, key, num_iterations, step_size):
+# @functools.partial(jax.jit, static_argnums=(0, 1, 2, 7))
+def evaluate(
+    model,
+    n_atoms,
+    batch_size,
+    key,
+    num_iterations,
+    step_size,
+    max_degree,
+    file_name,
+):
     score = score_function(model)
     score = jax.vmap(score)
 
@@ -14,7 +25,9 @@ def evaluate(model, n_atoms, batch_size, key, num_iterations, step_size):
     min_sigma = sigma_lower_bound(n_atoms)
     max_sigma = sigma_upper_bound(n_atoms)
 
-    sigmas = jnp.linspace(min_sigma, max_sigma, num=10)
+    min_sigma = jnp.log(min_sigma)
+    max_sigma = jnp.log(max_sigma)
+    sigmas = jnp.logspace(min_sigma, max_sigma, 15, base=jnp.e)
 
     # Sample
     samples = sample(
@@ -28,4 +41,5 @@ def evaluate(model, n_atoms, batch_size, key, num_iterations, step_size):
     )
 
     # Plot sample
-    adjacency_matrices = samples.reshape(-1, n_atoms, n_atoms)
+    adjacency_matrices = round_adj(samples)
+    plot(adjacency_matrices, max_degree, file_name)

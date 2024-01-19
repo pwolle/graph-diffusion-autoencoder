@@ -136,7 +136,7 @@ def sample(
     score: Callable[[np.ndarray, float], np.ndarray],
     step_size: float = 0.01,
     num_iterations: int = 1000,
-    natoms: int = 10,
+    n_atoms: int = 10,
     batch_size: int = 1,
     key: jrandom.PRNGKey = jrandom.PRNGKey(0),
 ) -> np.ndarray:
@@ -172,7 +172,7 @@ def sample(
     """
     # Initialize the samples.
     key, subkey = jrandom.split(key)
-    sample = symmetric_normal(key=subkey, shape=(batch_size, natoms, natoms))
+    sample = symmetric_normal(key=subkey, shape=(batch_size, n_atoms, n_atoms))
 
     # Find the minimum standard deviation.
     min_std = sigmas[-1]

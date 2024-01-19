@@ -170,5 +170,6 @@ __pycache__/
 *.tgz
 wandb/
 *.ipynb
+*.pdf
 
 myenv/
