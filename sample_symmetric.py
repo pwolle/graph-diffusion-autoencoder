@@ -228,3 +228,36 @@ def score_function(probability):
         return prob / sigma**2 - x_noise / sigma**2
 
     return score
+
+
+def to_conditianal_probability(model, model_cond, encouding, weight):
+    """
+    Compute the logits of conditional probability of x given x + z and the encouding of x.
+    With z ~ N(0, sigma^2).and x = 0 or 1.
+    Given the probability density function of x = 1 given x + z and
+    the probability density function of x = 1 given x + z and the encoding of x
+
+    Parameters
+    ---
+    model: Callable
+        Probability density function of x = 1 given x + z and sigma
+    model_cond: Callable
+        Probability density function of x = 1 given x + z and the encoding of x and sigma
+    encouding: np.array
+        Encoding of x.
+    weight: float
+        Weight of the two logits.
+
+    Returns
+    ---
+    Callable[[np.array, np.array], np.array]
+        logits of conditional probability of x = 1 given x + z and the encouding of x.
+    """
+
+    def probability(x, sigma):
+        logits_x = model(x, sigma)
+        logits_x_cond = model_cond(x, sigma, encouding)
+        logits = weight * logits_x + (1 - weight) * logits_x_cond
+        return logits
+
+    return probability
