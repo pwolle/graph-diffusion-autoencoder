@@ -115,7 +115,7 @@ class InputLayer(fj.Module):
 
         key1, key2, key3 = jrandom.split(key, 3)
         self.mlp = Sequential(
-            Linear(key1, 3 * dim, dim),
+            Linear(key1, 2 * dim, dim),
             layer_norm,
             jnn.relu,
             Linear(key2, dim, dim),
@@ -135,11 +135,7 @@ class InputLayer(fj.Module):
         d = jnp.sum(prob_adjacency, axis=-1, keepdims=True)
         d = fourier_features(d, self.dim * 2)
 
-        sigma = 0.5 if (sigma == None) else sigma ###################################################################################################
-        s = fourier_features(sigma, self.dim)
-        s = jnp.repeat(s[None], d.shape[-2], axis=-2)
-
-        v = self.mlp(jnp.concatenate([d, s], axis=-1))
+        v = self.mlp(d)
         return prob_adjacency, v
 
 
