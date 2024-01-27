@@ -43,10 +43,10 @@ def color_mapping(graph, num_nodes=13, max_degree=4):
     :return color_map: Color for each node
     """
 
-    #If graph is disconnected, then color whole graph orange
+    # If graph is disconnected, then color whole graph orange
     if not nx.is_connected(graph):
-        return np.array(["orange"]*num_nodes)
-    
+        return np.array(["orange"] * num_nodes)
+
     # Initialize array with color blue and length of num_nodes
     color_map = np.array(["blue"] * num_nodes)
 
