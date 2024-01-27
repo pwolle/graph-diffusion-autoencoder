@@ -46,7 +46,6 @@ def main(
         model_key,
         nlayer=nlayer,
         dim=dim,
-        dim_at=dim_at,
     ) 
 
     optimizer = optax.adam(lr)

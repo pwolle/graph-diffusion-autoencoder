@@ -6,6 +6,7 @@ import jax.numpy as jnp
 import jax.random as jrandom
 import jax.scipy.stats as jstats
 
+EPS_DEFAULT = 1e-4
 
 class Linear(fj.Module):
     def __init__(self, key, dim_in, dim, bias=False):
@@ -30,10 +31,10 @@ class Linear(fj.Module):
         return x + self.b.data
 
 
-def layer_norm(x, axis=-1):
+def layer_norm(x, axis=-1, eps=EPS_DEFAULT):
     mean = jnp.mean(x, axis=axis, keepdims=True)
     var = jnp.var(x, axis=axis, keepdims=True)
-    inv = lax.rsqrt(var + 1e-6)
+    inv = lax.rsqrt(var + eps)
     return (x - mean) * inv
 
 
@@ -45,11 +46,15 @@ class Sequential(fj.ModuleList):
         return x
 
 
-def fourier_features(x, n=32):
+def fourier_features(x, n=32, eps=EPS_DEFAULT):
     assert n % 2 == 0
 
-    i = jnp.arange(n // 2, dtype=jnp.float32) - n / 4
-    i = 2 * jnp.pi * 2**i
+    i = jnp.linspace(
+        jnp.maximum(-n / 4, jnp.log2(eps)),
+        jnp.minimum(n / 4, -jnp.log2(eps)),
+        n // 2,
+    )
+    i = 2 * jnp.pi * 2 ** i
 
     return jnp.concatenate(
         [
@@ -60,10 +65,10 @@ def fourier_features(x, n=32):
     )
 
 
-def ratio_encoding(binary_with_noise, sigma, prior=0.5):
+def ratio_encoding(binary_with_noise, sigma, prior=0.5, eps=EPS_DEFAULT):
     p0 = jstats.norm.pdf(binary_with_noise, loc=0, scale=sigma) * prior
     p1 = jstats.norm.pdf(binary_with_noise, loc=1, scale=sigma) * (1 - prior)
-    return p1 / (p0 + p1 + 1e-6)
+    return (p1 + eps) / (p0 + p1 + eps)
 
 
 def set_diagonal(x, value):
