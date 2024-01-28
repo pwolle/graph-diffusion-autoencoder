@@ -1,4 +1,3 @@
-from typing_extensions import Self
 import jax
 import jax.random as jrandom
 import memmpy
@@ -18,10 +17,19 @@ def main(
     lr: float = 3e-4,
     nlayer: int = 3,
     dim: int = 128,
-    dim_at: int = 128,
     seed: int = 0,
     dim_latent: int = 1024,
 ):
+
+    print("Loading data ...")
+    data = gdb13_graph_memmap("data", natoms)
+
+    data_train = memmpy.split(data, "train", shuffle=True, seed=seed)  # type: ignore
+    data_train = memmpy.Batched(data_train, batch_size, True)
+
+    data_valid = memmpy.split(data, "valid", shuffle=True, seed=seed)  # type: ignore
+    data_valid = memmpy.unwrap(data_valid)[:1024 * 4]
+
     key = jrandom.PRNGKey(seed)
     key, model_key = jrandom.split(key)
 
@@ -30,15 +38,6 @@ def main(
         key=model_key,
         nlayer=nlayer,
         dim=dim,
-        dim_at=dim_at,
-        dim_latent=dim_latent,
-    )
-
-    encoder = Encoder(
-        key=model_key,
-        nlayer=nlayer,
-        dim=dim,
-        dim_at=dim_at,
         dim_latent=dim_latent,
     )
     
@@ -48,36 +47,42 @@ def main(
         dim=dim,
     ) 
 
-    optimizer = optax.adam(lr)
+    # optimizer = optax.adam(lr)
+    # optimizer_state = optimizer.init(model)  # type: ignore
+    schedule = optax.warmup_cosine_decay_schedule(
+        init_value=1e-6,
+        peak_value=1e-3,
+        warmup_steps=50,
+        decay_steps=len(data_train) * epochs,
+        end_value=1e-6,
+    )
+
+    optimizer = optax.adamw(learning_rate=schedule, weight_decay=1e-5)
     optimizer_state = optimizer.init(model_cond)  # type: ignore
     print("Model initialized.")
 
     @jax.jit
-    def loss_fn(key, adjacencies, model, model_cond, encoder):
+    def loss_fn(key, adjacencies, model, model_cond):
         return score_interpolation_loss_cond(key,
                                              adjacencies,
                                              jax.vmap(model),
                                              jax.vmap(model_cond),
-                                             jax.vmap(encoder),
                                              )
 
     @jax.jit
-    def train_step(key, adjacencies, model, model_cond, encoder, optimizer_state):
+    def train_step(key, adjacencies, model, model_cond, optimizer_state):
         grad_fn = jax.value_and_grad(loss_fn, argnums=3)
-        loss, grad = grad_fn(key, adjacencies, model, model_cond, encoder)
+        loss, grad = grad_fn(key, adjacencies, model, model_cond)
 
-        updates, optimizer_state = optimizer.update(grad, optimizer_state)
+        updates, optimizer_state = optimizer.update(
+            grad,
+            optimizer_state, 
+            model_cond,
+        )
         model_cond = optax.apply_updates(model_cond, updates)
         return loss, model_cond, optimizer_state
 
     print("Loading data ...")
-    data = gdb13_graph_memmap("data", natoms)
-
-    data_train = memmpy.split(data, "train", shuffle=True, seed=seed)  # type: ignore
-    data_train = memmpy.Batched(data_train, batch_size, True)
-
-    data_valid = memmpy.split(data, "valid", shuffle=True, seed=seed)  # type: ignore
-    data_valid = memmpy.unwrap(data_valid)[:1024]
 
     timestamp = datetime.datetime.now()
     timestamp = timestamp.strftime("%Y-%m-%d %H:%M:%S")
@@ -90,7 +95,6 @@ def main(
 #            "lr": lr,
 #            "nlayer": nlayer,
 #            "dim": dim,
-#            "dim_at": dim_at,
 #            "seed": seed,
 #            "start time": timestamp,
 #        },
@@ -100,12 +104,13 @@ def main(
         print(f"Starting epoch {epoch} ...")
         for train_batch in tqdm.tqdm(data_train):
             train_batch = memmpy.unwrap(train_batch)
+
             key, train_key = jrandom.split(key)
             loss_train, model_cond, optimizer_state = train_step(
-                train_key, train_batch, model, model_cond, encoder, optimizer_state
+                train_key, train_batch, model, model_cond, optimizer_state
             )
 
-            loss_valid = loss_fn(key, data_valid, model, model_cond, encoder)
+            loss_valid = loss_fn(key, data_valid, model, model_cond)
             print("Validation loss: ",loss_valid)
             print("Training loss: ",loss_train)
 #            wandb.log(
@@ -124,12 +129,11 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--natoms", type=int, default=9)
-    parser.add_argument("--batch_size", type=int, default=128)
-    parser.add_argument("--epochs", type=int, default=500)
+    parser.add_argument("--batch_size", type=int, default=1024)
+    parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--lr", type=float, default=3e-4)
     parser.add_argument("--nlayer", type=int, default=2)
-    parser.add_argument("--dim", type=int, default=128)
-    parser.add_argument("--dim_at", type=int, default=8)
+    parser.add_argument("--dim", type=int, default=256)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--dim_latent", type=int, default=1024)
     args = parser.parse_args()
@@ -141,7 +145,6 @@ if __name__ == "__main__":
         lr=args.lr,
         nlayer=args.nlayer,
         dim=args.dim,
-        dim_at=args.dim_at,
         seed=args.seed,
         dim_latent=args.dim_latent
     )
