@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import jax.numpy as jnp
 
 def round_adj(adjs: jnp.array,
-              ) -> jnp.array:
+) -> jnp.array:
     """
     Round each element in adjacency matrices to 0 or 1
     
@@ -29,7 +29,7 @@ def round_adj(adjs: jnp.array,
 
 
 def adj_to_graph(adjs: jnp.array,
-                 ) -> nx.Graph:
+) -> nx.Graph:
     """
     Turn each adjacency matrix in the batch into an networkx graph and save into a list (len(list) == batch size) 
 
@@ -49,7 +49,7 @@ def adj_to_graph(adjs: jnp.array,
 
 def color_mapping(graph: nx.Graph,
                   max_degree: int,
-                  ) -> np.array:
+) -> np.array:
     """
     Create a color map for each node in the graph. If the graph is connected, 
     then color the node red which has a higher degree than max_degree and else blue.
@@ -108,7 +108,7 @@ def color_mapping(graph: nx.Graph,
 def plotting(graphs: list[nx.Graph],
              max_degree: int,
              file_name: str,
-             ) -> None:
+) -> None:
     """
     Plot a list of graphs in a grid
 
@@ -155,10 +155,10 @@ def plotting(graphs: list[nx.Graph],
     #Save file 
     plt.savefig(f"{file_name}.pdf")
 
-def plot(adjs: jnp.array
-         max_degree: int
-         file_name: str
-         )->None:
+def plot(adjs: jnp.array,
+         max_degree: int,
+         file_name: str,
+) -> None:
 
     graphs = adj_to_graph(adjs)
     plotting(graphs,max_degree,file_name)
