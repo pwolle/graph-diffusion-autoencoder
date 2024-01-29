@@ -3,7 +3,7 @@ import jax.random as jrandom
 import memmpy
 import optax
 import tqdm
-#import wandb
+import wandb
 import datetime
 
 from data import gdb13_graph_memmap
@@ -19,6 +19,7 @@ def main(
     dim: int = 128,
     seed: int = 0,
     dim_latent: int = 1024,
+    model_path: str = "",
 ):
 
     print("Loading data ...")
@@ -45,7 +46,10 @@ def main(
         model_key,
         nlayer=nlayer,
         dim=dim,
-    ) 
+    )
+
+    if model_path != "":
+        model = model.load_leaves(model_path)
 
     # optimizer = optax.adam(lr)
     # optimizer_state = optimizer.init(model)  # type: ignore
@@ -86,19 +90,19 @@ def main(
 
     timestamp = datetime.datetime.now()
     timestamp = timestamp.strftime("%Y-%m-%d %H:%M:%S")
-#    wandb.init(
-#        project="graph-diffusion-autoencoder",
-#        config={
-#            "natoms": natoms,
-#            "batch_size": batch_size,
-#            "epochs": epochs,
-#            "lr": lr,
-#            "nlayer": nlayer,
-#            "dim": dim,
-#            "seed": seed,
-#            "start time": timestamp,
-#        },
-#    )
+    wandb.init(
+        project="graph-diffusion-autoencoder",
+        config={
+            "natoms": natoms,
+            "batch_size": batch_size,
+            "epochs": epochs,
+            "lr": lr,
+            "nlayer": nlayer,
+            "dim": dim,
+            "seed": seed,
+            "start time": timestamp,
+        },
+    )
 
     for epoch in range(epochs):
         print(f"Starting epoch {epoch} ...")
@@ -111,17 +115,15 @@ def main(
             )
 
             loss_valid = loss_fn(key, data_valid, model, model_cond)
-            print("Validation loss: ",loss_valid)
-            print("Training loss: ",loss_train)
-#            wandb.log(
-#                {
-#                    "loss_train": loss_train,
-#                    "loss_valid": loss_valid,
-#                }
-#            )
+            wandb.log(
+                {
+                    "loss_train": loss_train,
+                    "loss_valid": loss_valid,
+                }
+            )
 
-#    model.save_leaves(f"model_{timestamp}.npz")
-#    wandb.finish()
+    model.save_leaves(f"model_{timestamp}.npz")
+    wandb.finish()
 
 
 if __name__ == "__main__":
@@ -136,6 +138,7 @@ if __name__ == "__main__":
     parser.add_argument("--dim", type=int, default=256)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--dim_latent", type=int, default=1024)
+    parser.add_argument("--model_path", type=str, default="")
     args = parser.parse_args()
 
     main(
@@ -146,5 +149,6 @@ if __name__ == "__main__":
         nlayer=args.nlayer,
         dim=args.dim,
         seed=args.seed,
-        dim_latent=args.dim_latent
+        dim_latent=args.dim_latent,
+        model_path=args.model_path
     )
