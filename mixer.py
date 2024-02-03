@@ -301,7 +301,10 @@ class MixerBlock(fj.Module):
 class OutputBonds(fj.Module):
     def __init__(self, key, dim: int):
         self.dim = dim
-        self.mix_bonds = MixBonds(key, dim)
+
+        key_mix, key_out = jrandom.split(key, 2)
+        self.mix_bonds = MixBonds(key_mix, dim)
+        self.out = Linear(key_out, dim, 1)
 
     def __call__(
         self,
@@ -314,6 +317,7 @@ class OutputBonds(fj.Module):
             atoms_features,
             total_features,
         )
+        bonds_features = self.out(bonds_features)
         bonds_features = bonds_features[..., 0]
         bonds_features = set_diagonal(bonds_features, 0)
         return bonds_features

@@ -131,57 +131,29 @@ class MLP(fj.Module):
 class InputLayer(fj.Module):
     def __init__(self: Self, key: jax.Array, dim: int):
         self.dim = dim
+        global_key, vertex_key, edge_key = jrandom.split(key, 3)
 
-        key, key1, key2 = jrandom.split(key, 3)
-        self.global_mlp = Sequential(
-            Linear(key1, dim, dim),
-            jnn.relu,
-            LayerNorm(dim),
-            Linear(key2, dim, dim),
-            jnn.relu,
-            LayerNorm(dim),
-        )
-
-        key, key1, key2 = jrandom.split(key, 3)
-        self.vertex_mlp = Sequential(
-            Linear(key1, dim, dim),
-            jnn.relu,
-            LayerNorm(dim),
-            Linear(key2, dim, dim),
-            jnn.relu,
-            LayerNorm(dim),
-        )
-
-        key1, key2 = jrandom.split(key, 2)
-        self.edge_mlp = Sequential(
-            Linear(key1, dim, dim),
-            jnn.relu,
-            LayerNorm(dim),
-            Linear(key2, dim, dim),
-            jnn.relu,
-            LayerNorm(dim),
-        )
+        self.bonds_mlp = MLP(edge_key, dim, dim, dim)
+        self.atoms_mlp = MLP(vertex_key, dim, dim, dim)
+        self.total_mlp = MLP(global_key, dim, dim, dim)
 
     def __call__(
         self: Self,
-        noisy_adjacency: jax.Array,
+        bonds_noisy: jax.Array,
         sigma: jax.Array,
     ) -> tuple[jax.Array, jax.Array]:
-        # global_features = fourier_features(sigma[..., None], self.dim)
-        # global_features = self.global_mlp(global_features)
-
-        prob_adjacency = ratio_encoding(noisy_adjacency, sigma)
-        prob_adjacency = set_diagonal(noisy_adjacency, 1)
+        prob_adjacency = ratio_encoding(bonds_noisy, sigma)
+        prob_adjacency = set_diagonal(bonds_noisy, 1)
 
         degree = jnp.sum(prob_adjacency, axis=-1, keepdims=True)
         degree = degree - 5
         degree = fourier_features(degree, self.dim)
-        vertex_features = self.vertex_mlp(degree)
+        atoms_features = self.atoms_mlp(degree)
 
-        edge_features = fourier_features(prob_adjacency[..., None], self.dim)
-        edge_features = self.edge_mlp(edge_features)
+        bonds_features = fourier_features(prob_adjacency[..., None], self.dim)
+        bonds_features = self.bonds_mlp(bonds_features)
 
-        return edge_features, vertex_features
+        return bonds_features, atoms_features
 
 
 class MultiHeadBidirectionalAttention(fj.Module):
