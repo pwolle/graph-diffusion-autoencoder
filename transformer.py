@@ -194,8 +194,7 @@ class MultiHeadBidirectionalAttention(fj.Module):
 
 
 class GlobalFromVerticies(fj.Module):
-    def __init__(self: Self):
-        ...
+    def __init__(self: Self): ...
 
     def __call__(self, features, features_auxillary):
         # do cross attention to add information from features_auxillary
@@ -208,8 +207,7 @@ class GraphTransformerBlock(fj.Module):
     https://arxiv.org/abs/1711.07553
     """
 
-    def __init__(self: Self):
-        ...
+    def __init__(self: Self): ...
 
     def __call__(
         self: Self,
@@ -222,33 +220,28 @@ class GraphTransformerBlock(fj.Module):
 
 
 class OutputLayer(fj.Module):
-    def __init__(self: Self):
-        ...
+    def __init__(self: Self): ...
 
     def __call__(
         self: Self,
         features_edges: jax.Array,
         features_vertex: jax.Array,
         features_global: jax.Array,
-    ) -> jax.Array:
-        ...
+    ) -> jax.Array: ...
 
 
 class GraphTransformerBinaryEdges(fj.Module):
-    def __init__(self: Self):
-        ...
+    def __init__(self: Self): ...
 
     def __call__(
         self: Self,
         noisy_adjacency: jax.Array,
         noise_level: jax.Array,
-    ) -> jax.Array:
-        ...
+    ) -> jax.Array: ...
 
 
 class GraphTransformerBinaryEdgesConditional(fj.Module):
-    def __init__(self: Self):
-        ...
+    def __init__(self: Self): ...
 
     def encode(self, adjacency):
         pass
@@ -258,8 +251,7 @@ class GraphTransformerBinaryEdgesConditional(fj.Module):
         noisy_adjacency: jax.Array,
         noise_level: jax.Array,
         condition_adjacency: jax.Array | None = None,
-    ) -> jax.Array:
-        ...
+    ) -> jax.Array: ...
 
 
 def test():
