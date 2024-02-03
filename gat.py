@@ -129,34 +129,26 @@ class MLP(fj.Module):
 
 
 class InputLayer(fj.Module):
-    def __init__(self: Self, key: jax.Array, dim: int):
+    def __init__(self, key, dim):
         self.dim = dim
-        global_key, vertex_key, edge_key = jrandom.split(key, 3)
+        self.mlp = MLP(key, 2 * dim, 2 * dim, dim)
 
-        self.bonds_mlp = MLP(edge_key, dim, dim, dim)
-        self.atoms_mlp = MLP(vertex_key, dim, dim, dim)
-        self.total_mlp = MLP(global_key, dim, dim, dim)
+    def __call__(self, noisy_adjacency, sigma):
+        adjacency = ratio_encoding(noisy_adjacency, sigma)
+        adjacency = set_diagonal(noisy_adjacency, 0.5)
 
-    def __call__(
-        self: Self,
-        bonds_noisy: jax.Array,
-        sigma: jax.Array,
-    ) -> tuple[jax.Array, jax.Array]:
-        prob_adjacency = ratio_encoding(bonds_noisy, sigma)
-        prob_adjacency = set_diagonal(bonds_noisy, 1)
-
-        degree = jnp.sum(prob_adjacency, axis=-1, keepdims=True)
-        degree = degree - 5
+        degree = jnp.sum(adjacency, axis=-1, keepdims=True) - 4.5
         degree = fourier_features(degree, self.dim)
-        atoms_features = self.atoms_mlp(degree)
 
-        bonds_features = fourier_features(prob_adjacency[..., None], self.dim)
-        bonds_features = self.bonds_mlp(bonds_features)
+        sigma_encoded = fourier_features(sigma, self.dim)[None]
+        sigma_encoded = jnp.repeat(sigma_encoded, degree.shape[-2], axis=-2)
 
-        return bonds_features, atoms_features
+        vertex_features = jnp.concatenate([degree, sigma_encoded], axis=-1)
+        vertex_features = self.mlp(vertex_features)
+        return adjacency, vertex_features
 
 
-class MultiHeadBidirectionalAttention(fj.Module):
+class Attention(fj.Module):
     def __init__(self: Self, key: jax.Array, dim: int, dim_at: int, num_heads: int):
         self.dim = dim
         self.dim_at = dim_at
@@ -168,12 +160,11 @@ class MultiHeadBidirectionalAttention(fj.Module):
         self.linearv = Linear(keyv, dim, dim_at * num_heads, bias=False)
 
         self.linearo = Linear(keyo, dim_at * num_heads, dim, bias=False)
-        self.lineare = Linear(keye, dim, num_heads, bias=False)
 
-    def __call__(self, edge_features, features_edges):
-        q = self.linearq(features_edges)
-        k = self.lineark(features_edges)
-        v = self.linearv(features_edges)
+    def __call__(self, adjacency, vertex_features):
+        q = self.linearq(vertex_features)
+        k = self.lineark(vertex_features)
+        v = self.linearv(vertex_features)
 
         q = jnp.reshape(q, q.shape[:-1] + (self.num_heads, self.dim_at))
         k = jnp.reshape(k, k.shape[:-1] + (self.num_heads, self.dim_at))
@@ -182,7 +173,8 @@ class MultiHeadBidirectionalAttention(fj.Module):
         a = jnp.einsum("qha,kha->hqk", q, k)
         a = a / jnp.sqrt(self.dim_at)
 
-        e = self.lineare(edge_features)
+        e = sigmoid_inv(adjacency)[..., None]
+        e = e * jnp.logspace(-2, 2, self.num_heads, base=2)
         e = e.transpose((2, 0, 1))
         e = (e + e.swapaxes(-1, -2)) * 2**-0.5
 
@@ -195,65 +187,48 @@ class MultiHeadBidirectionalAttention(fj.Module):
         return self.linearo(v)
 
 
-class GlobalFromVerticies(fj.Module):
-    def __init__(self: Self): ...
+class Block(fj.Module):
+    def __init__(self, key, dim, dim_at, num_heads):
+        self.dim = dim
+        self.attention = Attention(key, dim, dim_at, num_heads)
+        self.norm1 = LayerNorm(dim)
+        self.norm2 = LayerNorm(dim)
+        self.mlp = MLP(key, dim, 2 * dim, dim)
 
-    def __call__(self, features, features_auxillary):
-        # do cross attention to add information from features_auxillary
-        # to the features
-        ...
-
-
-class GraphTransformerBlock(fj.Module):
-    """
-    https://arxiv.org/abs/1711.07553
-    """
-
-    def __init__(self: Self): ...
-
-    def __call__(
-        self: Self,
-        features_edges: jax.Array,
-        features_vertex: jax.Array,
-        features_global: jax.Array,
-    ) -> tuple[jax.Array, jax.Array, jax.Array]:
-        # transformer block with MHAttention
-        ...
+    def __call__(self, adjacency, vertex_features):
+        vertex_features = self.norm1(vertex_features)
+        vertex_features = self.attention(adjacency, vertex_features)
+        vertex_features = vertex_features + self.norm2(vertex_features)
+        vertex_features = self.mlp(vertex_features)
+        return vertex_features
 
 
 class OutputLayer(fj.Module):
-    def __init__(self: Self): ...
+    def __init__(self, key, dim_in, dim):
+        self.dim_in = dim_in
+        self.dim = dim
 
-    def __call__(
-        self: Self,
-        features_edges: jax.Array,
-        features_vertex: jax.Array,
-        features_global: jax.Array,
-    ) -> jax.Array: ...
+        self.mlp = Linear(key, dim, 1)
+
+    def __call__(self, adjacency, vertex_features):
+        edges_from_vertices = concat_pairwise(vertex_features)
+
+        adjacency = sigmoid_inv(adjacency)[..., None]
+        edge_features = fourier_features(adjacency, self.dim)
+        edge_features = jnp.concatenate(
+            [edge_features, edges_from_vertices],
+            axis=-1,
+        )
+
+        edge_features = self.mlp(edge_features)
+        edge_features = edge_features[..., 0]
+        edge_features = edge_features + edge_features.T
+        return set_diagonal(edge_features, 0)
 
 
-class GraphTransformerBinaryEdges(fj.Module):
-    def __init__(self: Self): ...
-
-    def __call__(
-        self: Self,
-        noisy_adjacency: jax.Array,
-        noise_level: jax.Array,
-    ) -> jax.Array: ...
-
-
-class GraphTransformerBinaryEdgesConditional(fj.Module):
-    def __init__(self: Self): ...
-
-    def encode(self, adjacency):
+class BinaryEdgesModel(fj.Module):
+    def __init__(self, key, nlayer, dim, dim_at, num_heads):
         pass
-
-    def __call__(
-        self: Self,
-        noisy_adjacency: jax.Array,
-        noise_level: jax.Array,
-        condition_adjacency: jax.Array | None = None,
-    ) -> jax.Array: ...
 
 
 def test():
@@ -264,20 +239,19 @@ def test():
     input_layer = InputLayer(subkey, dim)
 
     key, subkey = jrandom.split(key, 2)
-    layer = MultiHeadBidirectionalAttention(subkey, dim, 3, 2)
+    layer = Block(subkey, dim, 3, 2)
 
     # adjacencies = #jnp.zeros((4, 4))
-    adjacencies = jrandom.normal(jrandom.PRNGKey(0), (5, 5))
-    adjacencies = (adjacencies + adjacencies.T) / 2**0.5
+    adjacencie = jrandom.normal(jrandom.PRNGKey(0), (5, 5))
+    adjacencie = (adjacencie + adjacencie.T) / 2**0.5
 
     sigma = jnp.ones(())
 
-    edge_features, vertex_features, global_features = input_layer(adjacencies, sigma)
-    print(edge_features.shape)
+    adjacency, vertex_features = input_layer(adjacencie, sigma)
+    print(adjacency.shape)
     print(vertex_features.shape)
-    print(global_features.shape)
 
-    vertex_features = layer(edge_features, vertex_features)
+    vertex_features = layer(adjacency, vertex_features)
     print(vertex_features.shape)
 
 
