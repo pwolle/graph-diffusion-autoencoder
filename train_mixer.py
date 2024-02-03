@@ -41,9 +41,9 @@ def main(
     schedule = optax.warmup_cosine_decay_schedule(
         init_value=1e-6,
         peak_value=1e-3,
-        warmup_steps=50,
+        warmup_steps=10,
         decay_steps=len(data_train) * epochs,
-        end_value=1e-5,
+        end_value=1e-4,
     )
 
     optimizer = optax.adamw(learning_rate=schedule, weight_decay=1e-5)
