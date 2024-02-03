@@ -319,11 +319,11 @@ class OutputBonds(fj.Module):
         return bonds_features
 
 
-class ModelBinaryEdges(fj.Module):
-    def __init__(self: Self, key: jax.Array, dim: int, nlayers: int = 1) -> None:
+class BinaryEdgesModel(fj.Module):
+    def __init__(self: Self, key: jax.Array, dim: int, nlayer: int = 1) -> None:
         self.input_layer = InputLayer(key, dim)
         self.mixer_layers = fj.ModuleList(
-            *[MixerBlock(k, dim) for k in jrandom.split(key, nlayers)]
+            *[MixerBlock(k, dim) for k in jrandom.split(key, nlayer)]
         )
         self.output_layer = OutputBonds(key, dim)
 
@@ -360,7 +360,7 @@ def main():
 
     sigma = jnp.ones(())
 
-    mixer = ModelBinaryEdges(key_model, dim)
+    mixer = BinaryEdgesModel(key_model, dim)
     bonds_features = mixer(
         adjacencies,
         sigma,
