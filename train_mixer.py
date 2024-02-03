@@ -13,7 +13,7 @@ from mixer import BinaryEdgesModel
 
 def main(
     natoms: int = 10,
-    batch_size: int = 64,
+    batch_size: int = 64, 
     epochs: int = 100,
     nlayer: int = 3,
     dim: int = 128,

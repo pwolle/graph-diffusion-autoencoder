@@ -52,6 +52,13 @@ def set_diagonal(x, value):
     return x
 
 
+def concat_pairwise(x: jax.Array) -> jax.Array:
+    concat = lambda a, b: jnp.concatenate([a, b], axis=-1)
+    concat = jax.vmap(concat, in_axes=(0, None))
+    concat = jax.vmap(concat, in_axes=(None, 0))
+    return concat(x, x)
+
+
 class Linear(fj.Module):
     def __init__(self, key, dim_in, dim, bias=False):
         self.dim_in = dim_in
@@ -101,6 +108,24 @@ class Sequential(fj.ModuleList):
             x = module(x)
 
         return x
+
+
+class MLP(fj.Module):
+    def __init__(
+        self: Self, key: jax.Array, dim_source: int, dim_hidden: int, dim_target: int
+    ) -> None:
+        key1, key2 = jrandom.split(key)
+        self.main = Sequential(
+            Linear(key1, dim_source, dim_hidden),
+            jnn.relu,
+            LayerNorm(dim_hidden),
+            Linear(key2, dim_hidden, dim_target),
+            jnn.relu,
+            LayerNorm(dim_target),
+        )
+
+    def __call__(self: Self, x: jax.Array) -> jax.Array:
+        return self.main(x)
 
 
 class InputLayer(fj.Module):

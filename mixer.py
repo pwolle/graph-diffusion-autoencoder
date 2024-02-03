@@ -159,10 +159,10 @@ class InputLayer(fj.Module):
         total_features = self.total_mlp(total_features)
 
         prob_adjacency = ratio_encoding(bonds_noisy, sigma)
-        prob_adjacency = set_diagonal(bonds_noisy, -1)
+        prob_adjacency = set_diagonal(bonds_noisy, 0)
 
         degree = jnp.sum(prob_adjacency, axis=-1, keepdims=True)
-        degree = degree - 3
+        degree = degree - 5
         degree = fourier_features(degree, self.dim)
         atoms_features = self.atoms_mlp(degree)
 
