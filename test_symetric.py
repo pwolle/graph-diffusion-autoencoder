@@ -61,7 +61,9 @@ if __name__ == "__main__":
         base=jnp.e,
     )[::-1]
 
-    for num_iterations in [100, 300, 500, 8000, 1000]:
+    num_iterations = 1000
+
+    for tempture in [0.1, 0.3, 0.5, 0.7, 0.9, 1]:
         samples = sample(
             sigmas=sigmas,
             score=score,
@@ -70,6 +72,7 @@ if __name__ == "__main__":
             batch_size=batch_size,
             num_iterations=num_iterations,
             step_size=step_size,
+            tempture=tempture,
         )
 
         plot = evaluate(

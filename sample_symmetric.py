@@ -16,6 +16,7 @@ def langevin_dynamics_step(
     i: int,
     sample: tuple[np.ndarray, float, float, np.ndarray],
     score: Callable[[np.ndarray, float], np.ndarray],
+    tempture: float,
 ) -> tuple[np.ndarray, float, float, np.ndarray]:
     """
     Helper function for a Langevin dynamics step.
@@ -54,7 +55,7 @@ def langevin_dynamics_step(
 
     # Update the samples.
     score_value = score(value, sigma=sigma)
-    value += step * score_value + np.sqrt(step) * noise
+    value += step * score_value + np.sqrt(step) * noise * tempture
 
     return value, sigma, step, key
 
@@ -136,6 +137,7 @@ def sample(
     score: Callable[[np.ndarray, float], np.ndarray],
     step_size: float = 0.01,
     num_iterations: int = 1000,
+    tempture: float = 1.0,
     n_atoms: int = 10,
     batch_size: int = 1,
     key: jrandom.PRNGKey = jrandom.PRNGKey(0),
@@ -181,6 +183,7 @@ def sample(
     langevin_dynamics_fixed = functools.partial(
         langevin_dynamics_step,
         score=score,
+        tempture=tempture,
     )
     interate_for_fixed_sigma_fixed = functools.partial(
         iterate_for_fixed_sigma,
