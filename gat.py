@@ -207,8 +207,7 @@ class OutputLayer(fj.Module):
     def __init__(self, key, dim_in, dim):
         self.dim_in = dim_in
         self.dim = dim
-
-        self.mlp = Linear(key, dim, 1)
+        self.mlp = Linear(key, dim * 3, 1)
 
     def __call__(self, adjacency, vertex_features):
         edges_from_vertices = concat_pairwise(vertex_features)
@@ -228,7 +227,25 @@ class OutputLayer(fj.Module):
 
 class BinaryEdgesModel(fj.Module):
     def __init__(self, key, nlayer, dim, dim_at, num_heads):
-        pass
+        self.nlayer = nlayer
+        self.dim = dim
+        self.dim_at = dim_at
+        self.num_heads = num_heads
+
+        key_input, key_transformer, key_output = jrandom.split(key, 3)
+        self.input_layer = InputLayer(key_input, dim)
+        self.blocks = fj.ModuleList(
+            *[Block(key_transformer, dim, dim_at, num_heads) for _ in range(nlayer)]
+        )
+        self.output_layer = OutputLayer(key_output, dim, dim)
+
+    def __call__(self, noisy_adjacency, sigma):
+        adjacency, vertex_features = self.input_layer(noisy_adjacency, sigma)
+
+        for block in self.blocks.modules:
+            vertex_features = block(adjacency, vertex_features)
+
+        return self.output_layer(adjacency, vertex_features)
 
 
 def test():
@@ -239,20 +256,17 @@ def test():
     input_layer = InputLayer(subkey, dim)
 
     key, subkey = jrandom.split(key, 2)
-    layer = Block(subkey, dim, 3, 2)
+    model = BinaryEdgesModel(subkey, 2, 8, 3, 4)
 
     # adjacencies = #jnp.zeros((4, 4))
-    adjacencie = jrandom.normal(jrandom.PRNGKey(0), (5, 5))
-    adjacencie = (adjacencie + adjacencie.T) / 2**0.5
+    adjacency = jrandom.normal(jrandom.PRNGKey(0), (5, 5))
+    adjacency = (adjacency + adjacency.T) / 2**0.5
 
     sigma = jnp.ones(())
 
-    adjacency, vertex_features = input_layer(adjacencie, sigma)
-    print(adjacency.shape)
+    vertex_features = model(adjacency, sigma)
     print(vertex_features.shape)
-
-    vertex_features = layer(adjacency, vertex_features)
-    print(vertex_features.shape)
+    print(vertex_features)
 
 
 if __name__ == "__main__":
