@@ -129,7 +129,7 @@ def iterate_for_fixed_sigma(
     return value, key
 
 
-@typechecked
+# @typechecked
 # @functools.partial(jax.jit, static_argnums=(1, 4, 5))
 def sample(
     sigmas: np.ndarray,

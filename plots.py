@@ -2,6 +2,7 @@ import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
 import jax.numpy as jnp
+import wandb
 
 
 def round_adj(
@@ -161,6 +162,7 @@ def plotting(
     plt.tight_layout()
     # Save file
     plt.savefig(f"{file_name}.pdf")
+    return wandb.Image(plt)
 
 
 def plot(
