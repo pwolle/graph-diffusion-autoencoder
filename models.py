@@ -129,7 +129,7 @@ class InputLayer(fj.Module):
         sigma: jax.Array,
     ) -> tuple[jax.Array, jax.Array]:
         adjacency = ratio_encoding(noisy_adjacency, sigma)
-        adjacency = set_diagonal(noisy_adjacency, 1)
+        adjacency = set_diagonal(noisy_adjacency, 0)
 
         degree = jnp.sum(adjacency, axis=-1, keepdims=True) - 5
         degree = fourier_features(degree, self.dim)
