@@ -7,7 +7,8 @@ import wandb
 import datetime
 
 from data import gdb13_graph_memmap
-from models import BinaryEdgesModel, score_interpolation_loss
+from models import score_interpolation_loss
+from gcn import BinaryEdgesModel
 
 
 def main(
@@ -92,7 +93,6 @@ def main(
             )
 
             loss_valid = loss_fn(key, data_valid, model)
-
             wandb.log(
                 {
                     "loss_train": loss_train,

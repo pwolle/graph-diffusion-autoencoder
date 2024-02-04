@@ -7,7 +7,7 @@ import wandb
 import datetime
 
 from data import gdb13_graph_memmap
-from models import BinaryEdgesModel, score_interpolation_loss
+from models import GraphDiffusionAutoencoder, score_interpolation_loss_ae
 
 
 def main(
@@ -31,7 +31,7 @@ def main(
     key, model_key = jrandom.split(key)
 
     print("Initializing model ...")
-    model = BinaryEdgesModel(
+    model = GraphDiffusionAutoencoder(
         model_key,
         nlayer=nlayer,
         dim=dim,
@@ -45,13 +45,13 @@ def main(
         end_value=1e-4,
     )
 
-    optimizer = optax.adamw(learning_rate=schedule, weight_decay=1e-5)
+    optimizer = optax.adamw(learning_rate=schedule, weight_decay=1e-6)
     optimizer_state = optimizer.init(model)  # type: ignore
     print("Model initialized.")
 
     @jax.jit
     def loss_fn(key, adjacencies, model):
-        return score_interpolation_loss(key, adjacencies, jax.vmap(model))
+        return score_interpolation_loss_ae(key, adjacencies, jax.vmap(model))
 
     @jax.jit
     def train_step(key, adjacencies, model, optimizer_state):
