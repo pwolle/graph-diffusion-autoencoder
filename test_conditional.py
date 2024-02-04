@@ -31,11 +31,11 @@ if __name__ == "__main__":
     data_valid = memmpy.split(data, "valid", shuffle=True, seed=seed)  # type: ignore
     data_valid = memmpy.unwrap(data_valid)[: 1024 * 4]
 
-    adjacency = data_valid[0]
+    adjacency = jnp.array(data_valid[0])
     graph = nx.from_numpy_array(adjacency)
     nx.draw(graph)
     graph_image = wandb.Image(plt)
-
+    plt.show()
     key = jrandom.PRNGKey(seed)
     key, model_key = jrandom.split(key)
 
@@ -51,20 +51,21 @@ if __name__ == "__main__":
             "dim": dim,
             "seed": seed,
             "start time": timestamp,
-            "graph": graph_image,
         },
     )
+
+    wandb.log({"graph": graph_image})
 
     key = jrandom.PRNGKey(seed)
     key, modul_key = jrandom.split(key)
     key, eval_key = jrandom.split(key)
 
-    model = GraphDiffusionAutoencoder(modul_key, nlayer=2, dim=dim)
+    model = GraphDiffusionAutoencoder(modul_key, nlayer=nlayer, dim=dim)
     model = model.load_leaves("model_auto.npz")
 
-    model = functools.partial(model, adjacency=adjacency)
+    model_fixed = functools.partial(model, adjacency=adjacency)
 
-    score = score_function(model)
+    score = score_function(model_fixed)
     score = jax.vmap(score)
     score = jax.jit(score)
 

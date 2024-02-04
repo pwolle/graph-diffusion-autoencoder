@@ -226,7 +226,7 @@ def score_function(probability):
     """
 
     def score(x_noise, sigma):
-        prob = probability(x_noise, sigma)
+        prob = probability(noisy_adjacency=x_noise, sigma=sigma)
         prob = jnn.sigmoid(prob)
         return prob / sigma**2 - x_noise / sigma**2
 
