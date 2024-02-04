@@ -2,6 +2,7 @@ import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
 import jax.numpy as jnp
+import wandb
 
 
 def round_adj(
@@ -47,23 +48,6 @@ def adj_to_graph(
         List with each element being a networkx Graph
     """
 
-    if batch:
-        graphs = [nx.from_numpy_array(adj) for adj in adjs]
-    else:
-        graphs = [nx.from_numpy_array(adjs)]
-
-    return graphs
-
-
-def color_mapping(graph, num_nodes=13, max_degree=4):
-    """For a given graph, color each node red which has has higher than max_degree and else blue
-
-    :param graph: Networkx graph
-    :param max_degree: upper limit, from which on to change the node color
-    :return color_map: Color for each node
-    """
-
-    # If graph is disconnected, then color whole graph orange
     return [nx.from_numpy_array(adj) for adj in adjs]
 
 
@@ -102,8 +86,6 @@ def color_mapping(
 
     # If graph is disconnected, then color whole graph orange
     if not nx.is_connected(graph):
-        return np.array(["orange"] * num_nodes)
-
         status = "disconnected"
         return np.array(["orange"] * num_nodes), status
 
@@ -180,6 +162,7 @@ def plotting(
     plt.tight_layout()
     # Save file
     plt.savefig(f"{file_name}.pdf")
+    return wandb.Image(plt)
 
 
 def plot(
@@ -187,6 +170,5 @@ def plot(
     max_degree: int,
     file_name: str,
 ) -> None:
-
     graphs = adj_to_graph(adjs)
     plotting(graphs, max_degree, file_name)
