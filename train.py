@@ -40,9 +40,9 @@ def main(
     schedule = optax.warmup_cosine_decay_schedule(
         init_value=1e-6,
         peak_value=1e-3,
-        warmup_steps=50,
+        warmup_steps=10,
         decay_steps=len(data_train) * epochs,
-        end_value=1e-5,
+        end_value=1e-4,
     )
 
     optimizer = optax.adamw(learning_rate=schedule, weight_decay=1e-5)
@@ -109,9 +109,9 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--natoms", type=int, default=10)
-    parser.add_argument("--batch_size", type=int, default=128)
-    parser.add_argument("--epochs", type=int, default=2)
-    parser.add_argument("--nlayer", type=int, default=2)
+    parser.add_argument("--batch_size", type=int, default=1024)
+    parser.add_argument("--epochs", type=int, default=10)
+    parser.add_argument("--nlayer", type=int, default=3)
     parser.add_argument("--dim", type=int, default=256)
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()

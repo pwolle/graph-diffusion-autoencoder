@@ -245,6 +245,17 @@ class BinaryEdgesModel(fj.Module):
         return binary_logits
 
 
+class Encoder(fj.Module):
+    def __init__(self, key, nlayer, dim):
+        key_input, key_gcn, key_output = jrandom.split(key, 3)
+        self.input_layer = InputLayer(key_input, dim)
+
+        self.gcn_layers = fj.ModuleList(
+            *[GCNLayer(k, dim, dim) for k in jrandom.split(key_gcn, nlayer)],
+        )
+        self.output = Linear(key_output, dim, dim)
+
+
 def test():
     model = BinaryEdgesModel(jrandom.PRNGKey(0), 1, 128)
 
