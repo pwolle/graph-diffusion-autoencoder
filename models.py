@@ -222,7 +222,7 @@ class BinaryEdgesModel(fj.Module):
         adjacency, vertex_features = self.input_layer(noisy_adjacency, sigma)
 
         for layer in self.gcn_layers.modules:
-            vertex_features = layer(noisy_adjacency, vertex_features)
+            vertex_features = layer(adjacency, vertex_features)
 
         return self.output_layer(adjacency, vertex_features)
 
