@@ -79,7 +79,7 @@ def fourier_features(x, n=32, eps=EPS_DEFAULT):
     )
 
 
-def ratio_encoding(binary_with_noise, sigma, prior=0.5, eps=EPS_DEFAULT):
+def ratio_encoding(binary_with_noise, sigma, eps=EPS_DEFAULT):
     p0 = jstats.norm.pdf(binary_with_noise, loc=0, scale=sigma)
     p1 = jstats.norm.pdf(binary_with_noise, loc=1, scale=sigma)
     return (p1 + eps) / (p0 + p1 + eps)
@@ -100,7 +100,7 @@ class InputLayer(fj.Module):
         self.dim = dim
         self.prior = prior
 
-        key1, key2, key3 = jrandom.split(key, 3)
+        key1, key2, key3, key_virtual = jrandom.split(key, 4)
         self.mlp = Sequential(
             Linear(key1, 2 * dim, dim),
             LayerNorm(dim),
@@ -110,12 +110,13 @@ class InputLayer(fj.Module):
             jnn.relu,
             Linear(key3, dim, dim),
         )
+        self.virtual = AddVirtualNode(key_virtual, dim)
 
     def __call__(self, noisy_adjacency, sigma):
-        prob_adjacency = ratio_encoding(noisy_adjacency, sigma, self.prior)
-        prob_adjacency = set_diagonal(noisy_adjacency, 1)
+        adjacency = ratio_encoding(noisy_adjacency, sigma, self.prior)
+        adjacency = set_diagonal(noisy_adjacency, 1)
 
-        degree = jnp.sum(prob_adjacency, axis=-1, keepdims=True) - 5
+        degree = jnp.sum(adjacency, axis=-1, keepdims=True) - 5
         degree = fourier_features(degree, self.dim)
 
         sigma_encoded = fourier_features(sigma, self.dim)[None]
@@ -123,7 +124,33 @@ class InputLayer(fj.Module):
 
         vertex_features = jnp.concatenate([degree, sigma_encoded], axis=-1)
         vertex_features = self.mlp(vertex_features)
-        return prob_adjacency, vertex_features
+
+        adjacency, vertex_features = self.virtual(adjacency, vertex_features)
+        return adjacency, vertex_features
+
+
+class AddVirtualNode(fj.Module):
+    def __init__(self, key, dim):
+        self.dim = dim
+        self.param = fj.Param(jrandom.normal(key, (1, dim), dtype=jnp.float32))
+
+    def __call__(self, adjacency, vertex_features):
+        size = adjacency.shape[0]
+        adjacency_new = jnp.ones(
+            (size + 1, size + 1),
+            dtype=jnp.float32,
+        )
+        adjacency_new = adjacency_new.at[:size, :size].set(adjacency)
+
+        vertex_features_new = jnp.concatenate(
+            [vertex_features, self.param.data],
+            axis=0,
+        )
+        return adjacency_new, vertex_features_new
+
+
+def remove_virtual_node(adjacency, vertex_features):
+    return adjacency[:-1, :-1], vertex_features[:-1]
 
 
 class GCNLayer(fj.Module):
@@ -178,6 +205,11 @@ class OutputLayer(fj.Module):
         )
 
     def __call__(self, adjacency, vertex_features):
+        adjacency, vertex_features = remove_virtual_node(
+            adjacency,
+            vertex_features,
+        )
+
         adjacency = sigmoid_inv(adjacency)[..., None]
         edge_features_vertices = concat_pairwise(vertex_features)
 
@@ -207,7 +239,24 @@ class BinaryEdgesModel(fj.Module):
         adjacency, vertex_features = self.input_layer(noisy_adjacency, sigma)
 
         for layer in self.gcn_layers.modules:
-            vertex_features = layer(noisy_adjacency, vertex_features)
+            vertex_features = layer(adjacency, vertex_features)
 
         binary_logits = self.output_layer(adjacency, vertex_features)
         return binary_logits
+
+
+def test():
+    model = BinaryEdgesModel(jrandom.PRNGKey(0), 1, 128)
+
+    # adjacencies = #jnp.zeros((4, 4))
+    adjacencies = jrandom.normal(jrandom.PRNGKey(0), (4, 4))
+    adjacencies = (adjacencies + adjacencies.T) / 2**0.5
+
+    sigma = jnp.ones(())
+
+    logits = model(adjacencies, sigma)
+    print(logits)
+
+
+if __name__ == "__main__":
+    test()
