@@ -285,9 +285,50 @@ class Encoder(fj.Module):
         adjacency, vertex_features = self.input_layer(noisy_adjacency, sigma)
 
         for layer in self.gcn_layers.modules:
-            vertex_features = layer(noisy_adjacency, vertex_features)
+            vertex_features = layer(adjacency, vertex_features)
 
+        vertex_features = jnp.mean(vertex_features, axis=0)
         return self.output_layer(vertex_features)
+
+
+class CondBinaryEdgesModel(fj.Module):
+    def __init__(self: Self, key: jax.Array, nlayer: int, dim: int) -> None:
+        key_input, key_gcn, key_output = jrandom.split(key, 3)
+        self.input_layer = InputLayerCond(key_input, dim)
+
+        self.gcn_layers = fj.ModuleList(
+            *[GCNLayer(k, dim) for k in jrandom.split(key_gcn, nlayer)],
+        )
+        self.output_layer = OutputLayer(key_output, dim)
+
+    def __call__(
+        self: Self,
+        noisy_adjacency: jax.Array,
+        sigma: jax.Array,
+        cond: jax.Array,
+    ) -> jax.Array:
+        adjacency, vertex_features = self.input_layer(
+            noisy_adjacency,
+            sigma,
+            cond,
+        )
+
+        for layer in self.gcn_layers.modules:
+            vertex_features = layer(adjacency, vertex_features)
+
+        return self.output_layer(adjacency, vertex_features)
+
+
+class GraphDiffusionAutoencoder(fj.Module):
+    def __init__(self, key, nlayer, dim):
+        key_encoder, key_decoder = jrandom.split(key, 2)
+        self.encoder = Encoder(key_encoder, nlayer, dim)
+        self.decoder = CondBinaryEdgesModel(key_decoder, nlayer, dim)
+
+    def __call__(self, adjacency, noisy_adjacency, sigma):
+        cond = self.encoder(adjacency, sigma)
+        print(f"{cond.shape=}")
+        return self.decoder(noisy_adjacency, sigma, cond)
 
 
 def symmetric_normal(
@@ -350,20 +391,38 @@ def score_interpolation_loss(key, adjacencies, model):
     return loss.mean()
 
 
+def score_interpolation_loss_ae(key, adjacencies, model):
+    assert adjacencies.ndim == 3
+
+    key_noise, key_sigma = jrandom.split(key, 2)
+    noise = symmetric_normal(key_noise, adjacencies.shape)
+
+    batch_size = adjacencies.shape[0]
+    sigma = random_sigma(key_sigma, batch_size)
+
+    adjacencies_tilde = adjacencies + noise * sigma[..., None, None]
+    adjacencies_hat = model(adjacencies_tilde, adjacencies_tilde, sigma)
+
+    assert adjacencies_hat.shape == adjacencies.shape
+
+    loss = bce_logits(adjacencies, adjacencies_hat)
+    return loss.mean()
+
+
 def accuracy(binary, logits):
     return (binary == (logits > 0)).mean()
 
 
 def test():
-    model = BinaryEdgesModel(jrandom.PRNGKey(0), 1, 128)
+    model = GraphDiffusionAutoencoder(jrandom.PRNGKey(0), 1, 128)
 
     # adjacencies = #jnp.zeros((4, 4))
-    adjacencies = jrandom.normal(jrandom.PRNGKey(0), (4, 4))
-    adjacencies = (adjacencies + adjacencies.T) / 2**0.5
+    adjacency = jrandom.normal(jrandom.PRNGKey(0), (4, 4))
+    adjacency = (adjacency + adjacency.T) / 2**0.5
 
     sigma = jnp.ones(())
 
-    logits = model(adjacencies, sigma)
+    logits = model(adjacency, adjacency, sigma)
     print(logits)
 
 
