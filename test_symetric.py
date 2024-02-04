@@ -61,9 +61,10 @@ if __name__ == "__main__":
         base=jnp.e,
     )[::-1]
 
-    num_iterations = 1000
+    num_iterations = 1024
 
-    for tempture in [0.1, 0.3, 0.5, 0.7, 0.9, 1]:
+    tempture = 1.1
+    for iterations in [1024, 2048, 4096]:
         samples = sample(
             sigmas=sigmas,
             score=score,
