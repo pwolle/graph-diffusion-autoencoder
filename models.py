@@ -280,9 +280,11 @@ class Encoder(fj.Module):
     def __call__(
         self: Self,
         noisy_adjacency: jax.Array,
-        sigma: jax.Array,
     ) -> jax.Array:
-        adjacency, vertex_features = self.input_layer(noisy_adjacency, sigma)
+        adjacency, vertex_features = self.input_layer(
+            noisy_adjacency,
+            jnp.zeros(()),
+        )
 
         for layer in self.gcn_layers.modules:
             vertex_features = layer(adjacency, vertex_features)
@@ -326,7 +328,7 @@ class GraphDiffusionAutoencoder(fj.Module):
         self.decoder = CondBinaryEdgesModel(key_decoder, nlayer, dim)
 
     def __call__(self, adjacency, noisy_adjacency, sigma):
-        cond = self.encoder(adjacency, sigma)
+        cond = self.encoder(adjacency)
         return self.decoder(noisy_adjacency, sigma, cond)
 
 
