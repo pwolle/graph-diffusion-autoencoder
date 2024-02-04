@@ -9,7 +9,7 @@ import datetime
 import matplotlib.pyplot as plt
 
 from data import gdb13_graph_memmap
-from models import GraphDiffusionAutoencoder, score_interpolation_loss_ae
+from models import GraphDiffusionAutoencoder
 from sklearn.decomposition import PCA
 
 
@@ -23,7 +23,7 @@ def main(
 ):
     data = gdb13_graph_memmap("data", natoms)
 
-    data_valid = memmpy.split(data, "valid", shuffle=True, seed=seed)  # type: ignore
+    data_valid = memmpy.split(data, "train", shuffle=True, seed=seed)  # type: ignore
     data_valid = memmpy.unwrap(data_valid)
 
     model = GraphDiffusionAutoencoder(
@@ -32,7 +32,7 @@ def main(
         dim=dim,
     )
     model = model.load_leaves(model_path)
-    enoder = jax.jit(model.encoder)
+    enoder = jax.jit(jax.vmap(model.encoder))
 
     encoded = []
     for batch in tqdm.tqdm(memmpy.Batched(data_valid, batch_size, False)):
@@ -46,20 +46,20 @@ def main(
     encoded = pca.transform(encoded)
 
     plt.scatter(encoded[:, 0], encoded[:, 1])
-    plt.savefig("encoded.png")
+    plt.savefig("encoded.png", dpi=300)
 
     timestamp = datetime.datetime.now()
     timestamp = timestamp.strftime("%Y-%m-%d %H:%M:%S")
-    wandb.init(
-        project="sampling",
-        config={
-            "natoms": natoms,
-            "seed": seed,
-            "start time": timestamp,
-        },
-    )
+    # wandb.init(
+    #     project="sampling",
+    #     config={
+    #         "natoms": natoms,
+    #         "seed": seed,
+    #         "start time": timestamp,
+    #     },
+    # )
 
-    wandb.log({"encoded": wandb.Image("encoded.png")})
+    # wandb.log({"encoded": wandb.Image("encoded.png")})
 
 
 if __name__ == "__main__":
