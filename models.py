@@ -327,7 +327,6 @@ class GraphDiffusionAutoencoder(fj.Module):
 
     def __call__(self, adjacency, noisy_adjacency, sigma):
         cond = self.encoder(adjacency, sigma)
-        print(f"{cond.shape=}")
         return self.decoder(noisy_adjacency, sigma, cond)
 
 
@@ -401,7 +400,7 @@ def score_interpolation_loss_ae(key, adjacencies, model):
     sigma = random_sigma(key_sigma, batch_size)
 
     adjacencies_tilde = adjacencies + noise * sigma[..., None, None]
-    adjacencies_hat = model(adjacencies_tilde, adjacencies_tilde, sigma)
+    adjacencies_hat = model(adjacencies, adjacencies_tilde, sigma)
 
     assert adjacencies_hat.shape == adjacencies.shape
 

@@ -45,7 +45,7 @@ def main(
         end_value=1e-4,
     )
 
-    optimizer = optax.adamw(learning_rate=schedule, weight_decay=1e-5)
+    optimizer = optax.adamw(learning_rate=schedule, weight_decay=1e-6)
     optimizer_state = optimizer.init(model)  # type: ignore
     print("Model initialized.")
 
