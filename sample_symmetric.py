@@ -2,12 +2,16 @@ import functools
 import jax.numpy as np
 import jax
 import jax.random as jrandom
+import jax.nn as jnn
 from jax import lax
 import typeguard
 from typeguard import typechecked
 from typing import Callable
 
+from models import symmetric_normal, set_diagonal
 
+
+# @functools.partial(jax.jit, static_argnums=(2))
 def langevin_dynamics_step(
     i: int,
     sample: tuple[np.ndarray, float, float, np.ndarray],
@@ -47,7 +51,7 @@ def langevin_dynamics_step(
     key, subkey = jrandom.split(key)
 
     # Generate the noise.
-    noise = jrandom.normal(key=subkey, shape=value.shape)
+    noise = symmetric_normal(key=subkey, shape=value.shape)
 
     # Update the samples.
     score_value = score(value, sigma=sigma)
@@ -56,6 +60,7 @@ def langevin_dynamics_step(
     return value, sigma, step, key
 
 
+# @functools.partial(jax.jit, static_argnums=(2, 7))
 def iterate_for_fixed_sigma(
     i: int,
     sample: tuple[np.ndarray, np.ndarray],
@@ -67,6 +72,7 @@ def iterate_for_fixed_sigma(
     step_size: float,
     num_iterations: int,
     sigmas: np.ndarray,
+    batch_size: int = 1,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Helper function for iteration over different noise (sigma).
@@ -111,29 +117,35 @@ def iterate_for_fixed_sigma(
     # Update the step size.
     step = step_size * sigma**2 / min_sigma**2
 
+    sigma_batch = np.ones((batch_size,)) * sigma
+
     # Update the samples.
     value, *_ = lax.fori_loop(
         0,
         num_iterations,
         langevin_dynamics_step,
-        (value, sigma, step, key),
+        (value, sigma_batch, step, key),
     )
 
     return value, key
 
 
-@typechecked
+# @typechecked
+# @functools.partial(jax.jit, static_argnums=(1, 4, 5))
 def sample(
     sigmas: np.ndarray,
     score: Callable[[np.ndarray, float], np.ndarray],
     step_size: float = 0.01,
     num_iterations: int = 1000,
     tempture: float = 1.0,
-    shape: tuple = (2,),
+    n_atoms: int = 10,
+    batch_size: int = 1,
     key: jrandom.PRNGKey = jrandom.PRNGKey(0),
 ) -> np.ndarray:
     """
     Sample from the distribution using Langevin dynamics.
+
+    Is jittable with static arguments: 1, 4, 5
 
     Parameters
     ---
@@ -162,7 +174,7 @@ def sample(
     """
     # Initialize the samples.
     key, subkey = jrandom.split(key)
-    sample = jrandom.normal(key=subkey, shape=shape)
+    sample = symmetric_normal(key=subkey, shape=(batch_size, n_atoms, n_atoms))
 
     # Find the minimum standard deviation.
     min_std = sigmas[-1]
@@ -180,6 +192,7 @@ def sample(
         step_size=step_size,
         num_iterations=num_iterations,
         sigmas=sigmas,
+        batch_size=batch_size,
     )
 
     # Calculate the samples.
@@ -189,13 +202,13 @@ def sample(
         interate_for_fixed_sigma_fixed,
         (sample, key),
     )
+    # Set diagonal to zero.
 
+    sample = jax.vmap(set_diagonal)(sample, np.zeros((batch_size,)))
     return sample
 
 
-def score_function(
-    probability: Callable[[np.array], np.array]
-) -> Callable[[np.array, np.array], np.array]:
+def score_function(probability):
     """
     Compute the score function for x + z.
     With z ~ N(0, sigma^2).and x = 0 or 1.
@@ -212,7 +225,42 @@ def score_function(
         Score function.
     """
 
-    def score(x_noise: np.array, sigma: np.array) -> np.array:
-        return probability(x_noise, sigma) * 1 / sigma**2 - x_noise / sigma**2
+    def score(x_noise, sigma):
+        prob = probability(x_noise, sigma)
+        prob = jnn.sigmoid(prob)
+        return prob / sigma**2 - x_noise / sigma**2
 
     return score
+
+
+def to_conditianal_probability(model, model_cond, encouding, weight):
+    """
+    Compute the logits of conditional probability of x given x + z and the encouding of x.
+    With z ~ N(0, sigma^2).and x = 0 or 1.
+    Given the probability density function of x = 1 given x + z and
+    the probability density function of x = 1 given x + z and the encoding of x
+
+    Parameters
+    ---
+    model: Callable
+        Probability density function of x = 1 given x + z and sigma
+    model_cond: Callable
+        Probability density function of x = 1 given x + z and the encoding of x and sigma
+    encouding: np.array
+        Encoding of x.
+    weight: float
+        Weight of the two logits.
+
+    Returns
+    ---
+    Callable[[np.array, np.array], np.array]
+        logits of conditional probability of x = 1 given x + z and the encouding of x.
+    """
+
+    def probability(x, sigma):
+        logits_x = model(x, sigma)
+        logits_x_cond = model_cond(x, sigma, encouding)
+        logits = weight * logits_x + (1 - weight) * logits_x_cond
+        return logits
+
+    return probability

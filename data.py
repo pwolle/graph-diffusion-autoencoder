@@ -34,10 +34,9 @@ def gdb13_graphs(
         Files to be used (how many atoms per molecule)
     """
     # Check if file exist, if not try to download
-    path1 = os.path.join(path, f"{natoms}.g.smi")
-    path2 = os.path.join(path, f"{natoms}.sk.smi")
+    path_smi = os.path.join(path, f"{natoms}.g.smi")
 
-    if not os.path.exists(path1) or not os.path.exists(path2):
+    if not os.path.exists(path_smi):  # or not os.path.exists(path2):
         print("GDB13 files not found, downloading ...")
 
         # Download data
@@ -47,17 +46,9 @@ def gdb13_graphs(
             "https://zenodo.org/record/5172018/files/gdb13.g.tgz",
             out=tempdir,
         )
-        wget.download(
-            "https://zenodo.org/record/5172018/files/gdb13.sk.tgz",
-            out=tempdir,
-        )
 
         # Extract files
         file = tarfile.open(os.path.join(tempdir, "gdb13.g.tgz"))
-        file.extractall(path)
-        file.close()
-
-        file = tarfile.open(os.path.join(tempdir, "gdb13.sk.tgz"))
         file.extractall(path)
         file.close()
 
@@ -65,10 +56,10 @@ def gdb13_graphs(
     else:
         print("GDB13 files found.")
 
-    nlines = countlines(path1) + countlines(path2)
-    print(f"Reading {nlines} SMILES from {path1} and {path2} ...")
+    nlines = countlines(path_smi)
+    print(f"Reading {nlines} SMILES from {path_smi} ...")
 
-    bar = tqdm.tqdm(itertools.chain(open(path1), open(path2)), total=nlines)
+    bar = tqdm.tqdm(open(path_smi), total=nlines)
     for line in bar:
         mol = Chem.MolFromSmiles(line)  # type: ignore
         adj = Chem.GetAdjacencyMatrix(mol, useBO=True)  # type: ignore

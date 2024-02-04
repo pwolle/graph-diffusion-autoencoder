@@ -7,7 +7,8 @@ import wandb
 import datetime
 
 from data import gdb13_graph_memmap
-from models import BinaryEdgesModel, score_interpolation_loss
+from models import score_interpolation_loss
+from gat import BinaryEdgesModel
 
 
 def main(
@@ -35,6 +36,8 @@ def main(
         model_key,
         nlayer=nlayer,
         dim=dim,
+        dim_at=8,
+        num_heads=16,
     )
 
     schedule = optax.warmup_cosine_decay_schedule(
@@ -109,9 +112,9 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--natoms", type=int, default=10)
-    parser.add_argument("--batch_size", type=int, default=1024)
-    parser.add_argument("--epochs", type=int, default=10)
-    parser.add_argument("--nlayer", type=int, default=3)
+    parser.add_argument("--batch_size", type=int, default=128)
+    parser.add_argument("--epochs", type=int, default=2)
+    parser.add_argument("--nlayer", type=int, default=2)
     parser.add_argument("--dim", type=int, default=256)
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
