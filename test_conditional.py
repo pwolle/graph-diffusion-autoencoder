@@ -18,7 +18,7 @@ from data import gdb13_graph_memmap
 if __name__ == "__main__":
     n_atoms = 12
     seed = 0
-    batch_size = 16
+    batch_size = 1
     max_degree = 3
     dim = 256
     nlayer = 3
@@ -33,7 +33,7 @@ if __name__ == "__main__":
 
     adjacency = data_valid[0]
     graph = nx.from_numpy_array(adjacency)
-    nx.draw(graph, ax=plt)
+    nx.draw(graph)
     graph_image = wandb.Image(plt)
 
     key = jrandom.PRNGKey(seed)
@@ -89,7 +89,7 @@ if __name__ == "__main__":
     num_iterations = 1024
 
     tempture = 1.1
-    for num_iterations in [2048]:
+    for num_iterations in [20]:
         samples = sample(
             sigmas=sigmas,
             score=score,
