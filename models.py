@@ -233,7 +233,7 @@ class InputLayerCond(fj.Module):
 
         key1, key2, key3 = jrandom.split(key, 3)
         self.mlp = Sequential(
-            Linear(key1, 3 * dim, dim),
+            Linear(key1, 4 * dim, dim),
             LayerNorm(dim),
             jnn.relu,
             Linear(key2, dim, dim),
@@ -322,7 +322,7 @@ class CondBinaryEdgesModel(fj.Module):
 class GraphDiffusionAutoencoder(fj.Module):
     def __init__(self, key, nlayer, dim):
         key_encoder, key_decoder = jrandom.split(key, 2)
-        self.encoder = Encoder(key_encoder, nlayer, dim)
+        self.encoder = Encoder(key_encoder, nlayer, dim * 2)
         self.decoder = CondBinaryEdgesModel(key_decoder, nlayer, dim)
 
     def __call__(self, adjacency, noisy_adjacency, sigma):
