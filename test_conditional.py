@@ -2,20 +2,42 @@ from sample_symmetric import sample, score_function
 from models import GraphDiffusionAutoencoder
 from sigma_intevall import sigma_lower_bound, sigma_upper_bound
 from evaluate import evaluate
+import functools
+import networkx as nx
+import matplotlib.pyplot as plt
 
 import jax
 import jax.random as jrandom
 import jax.numpy as jnp
 import wandb
 import datetime
+import memmpy
+
+from data import gdb13_graph_memmap
 
 if __name__ == "__main__":
     n_atoms = 12
     seed = 0
-    batch_size = 256
+    batch_size = 16
     max_degree = 3
     dim = 256
     nlayer = 3
+
+    data = gdb13_graph_memmap("data", n_atoms)
+
+    data_train = memmpy.split(data, "train", shuffle=True, seed=seed)  # type: ignore
+    data_train = memmpy.Batched(data_train, batch_size, True)
+
+    data_valid = memmpy.split(data, "valid", shuffle=True, seed=seed)  # type: ignore
+    data_valid = memmpy.unwrap(data_valid)[: 1024 * 4]
+
+    adjacency = data_valid[0]
+    graph = nx.from_numpy_array(adjacency)
+    nx.draw(graph, ax=plt)
+    graph_image = wandb.Image(plt)
+
+    key = jrandom.PRNGKey(seed)
+    key, model_key = jrandom.split(key)
 
     timestamp = datetime.datetime.now()
     timestamp = timestamp.strftime("%Y-%m-%d %H:%M:%S")
@@ -29,6 +51,7 @@ if __name__ == "__main__":
             "dim": dim,
             "seed": seed,
             "start time": timestamp,
+            "graph": graph_image,
         },
     )
 
@@ -38,6 +61,8 @@ if __name__ == "__main__":
 
     model = GraphDiffusionAutoencoder(modul_key, nlayer=2, dim=dim)
     model = model.load_leaves("model_auto.npz")
+
+    model = functools.partial(model, adjacency=adjacency)
 
     score = score_function(model)
     score = jax.vmap(score)
