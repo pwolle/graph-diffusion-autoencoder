@@ -10,7 +10,7 @@ import wandb
 import datetime
 
 if __name__ == "__main__":
-    n_atoms = 11
+    n_atoms = 12
     seed = 0
     batch_size = 256
     max_degree = 3
@@ -36,8 +36,8 @@ if __name__ == "__main__":
     key, modul_key = jrandom.split(key)
     key, eval_key = jrandom.split(key)
 
-    model = BinaryEdgesModel(modul_key, nlayer=2, dim=dim)
-    model = model.load_leaves("model.npz")
+    model = BinaryEdgesModel(modul_key, nlayer=nlayer, dim=dim)
+    model = model.load_leaves("model_unc.npz")
 
     score = score_function(model)
     score = jax.vmap(score)
@@ -64,7 +64,7 @@ if __name__ == "__main__":
     num_iterations = 1024
 
     tempture = 1.1
-    for num_iterations in [1024, 2048, 4096]:
+    for num_iterations in [2048]:
         samples = sample(
             sigmas=sigmas,
             score=score,
