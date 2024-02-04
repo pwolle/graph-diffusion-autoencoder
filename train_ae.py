@@ -7,7 +7,7 @@ import wandb
 import datetime
 
 from data import gdb13_graph_memmap
-from models import BinaryEdgesModel, score_interpolation_loss_ae
+from models import GraphDiffusionAutoencoder, score_interpolation_loss_ae
 
 
 def main(
@@ -31,7 +31,7 @@ def main(
     key, model_key = jrandom.split(key)
 
     print("Initializing model ...")
-    model = BinaryEdgesModel(
+    model = GraphDiffusionAutoencoder(
         model_key,
         nlayer=nlayer,
         dim=dim,
