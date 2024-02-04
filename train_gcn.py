@@ -93,7 +93,6 @@ def main(
             )
 
             loss_valid = loss_fn(key, data_valid, model)
-
             wandb.log(
                 {
                     "loss_train": loss_train,

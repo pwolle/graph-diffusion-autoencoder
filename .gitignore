@@ -172,3 +172,4 @@ wandb/
 *.ipynb
 
 myenv/
+data.zip
