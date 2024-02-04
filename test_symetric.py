@@ -12,7 +12,7 @@ import datetime
 if __name__ == "__main__":
     n_atoms = 11
     seed = 0
-    batch_size = 1
+    batch_size = 256
     max_degree = 3
     dim = 256
     nlayer = 2
@@ -37,13 +37,13 @@ if __name__ == "__main__":
     key, eval_key = jrandom.split(key)
 
     model = BinaryEdgesModel(modul_key, nlayer=2, dim=dim)
-    model = model.load_leaves("model_2024-01-19 01:44:18.npz")
+    model = model.load_leaves("model.npz")
 
     score = score_function(model)
     score = jax.vmap(score)
     score = jax.jit(score)
 
-    sample = jax.jit(sample, static_argnums=(1, 4, 5))
+    sample = jax.jit(sample, static_argnums=(1, 5, 6))
 
     min_sigma = sigma_lower_bound(n_atoms)
     max_sigma = sigma_upper_bound(n_atoms)
@@ -51,8 +51,8 @@ if __name__ == "__main__":
     min_sigma = jnp.log(min_sigma)
     max_sigma = jnp.log(max_sigma)
 
-    step_size = 1e-4
-    n_sigmas = 20
+    step_size = 1e-3
+    n_sigmas = 32
 
     sigmas = jnp.logspace(
         min_sigma,
@@ -78,7 +78,7 @@ if __name__ == "__main__":
         plot = evaluate(
             samples=samples,
             max_degree=max_degree,
-            file_name="test_symmetric" + num_iterations,
+            file_name="test_symmetric" + str(tempture),
             use_wandb=True,
         )
 
@@ -87,6 +87,7 @@ if __name__ == "__main__":
                 "num_iterations": num_iterations,
                 "step_size": step_size,
                 "n_sigmas": n_sigmas,
+                "tempture": tempture,
                 "plot": plot,
             }
         )
