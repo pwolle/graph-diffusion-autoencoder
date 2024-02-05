@@ -18,7 +18,7 @@ import functools
 if __name__ == "__main__":
     n_atoms = 12
     seed = 0
-    batch_size = 1
+    batch_size = 16
     max_degree = 3
     dim = 256
     nlayer = 2
@@ -70,15 +70,6 @@ if __name__ == "__main__":
     # model_fixed = functools.partial(model, adjacency=adjacency)
 
     # score function
-    conditional_probability = to_conditianal_probability(
-        model_unc=model_unconditional,
-        model_cond=model,
-        encouding=adjacency,
-        weight=1.2,
-    )
-    score = score_function(model_unconditional)
-    score = jax.vmap(score)
-    score = jax.jit(score)
 
     sample = jax.jit(sample, static_argnums=(1, 5, 6))
 
@@ -98,10 +89,19 @@ if __name__ == "__main__":
         base=jnp.e,
     )[::-1]
 
-    num_iterations = 1024
+    num_iterations = 2048
 
-    tempture = 0.65
-    for num_iterations in [20]:
+    tempture = 0.8
+    for weight in [0.7, 0.9, 1, 1.1, 1.3, 1.5]:
+        conditional_probability = to_conditianal_probability(
+            model_unc=model_unconditional,
+            model_cond=model,
+            encouding=adjacency,
+            weight=1.2,
+        )
+        score = score_function(model_unconditional)
+        score = jax.vmap(score)
+        score = jax.jit(score)
         samples = sample(
             sigmas=sigmas,
             score=score,
