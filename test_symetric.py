@@ -10,7 +10,7 @@ import wandb
 import datetime
 
 if __name__ == "__main__":
-    n_atoms = 12
+    n_atoms = 10
     seed = 0
     batch_size = 256
     max_degree = 3
@@ -61,10 +61,10 @@ if __name__ == "__main__":
         base=jnp.e,
     )[::-1]
 
-    num_iterations = 1024
+    num_iterations = 2048
 
-    tempture = 1.1
-    for num_iterations in [2048]:
+    temperature = 1.1
+    for temperature in [0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1]:
         samples = sample(
             sigmas=sigmas,
             score=score,
@@ -73,13 +73,13 @@ if __name__ == "__main__":
             batch_size=batch_size,
             num_iterations=num_iterations,
             step_size=step_size,
-            tempture=tempture,
+            tempture=temperature,
         )
 
         plot = evaluate(
             samples=samples,
             max_degree=max_degree,
-            file_name="test_symmetric" + str(tempture),
+            file_name="test_symmetric" + str(temperature),
             use_wandb=True,
         )
 
@@ -88,7 +88,7 @@ if __name__ == "__main__":
                 "num_iterations": num_iterations,
                 "step_size": step_size,
                 "n_sigmas": n_sigmas,
-                "tempture": tempture,
+                "temperature": temperature,
                 "plot": plot,
             }
         )

@@ -16,12 +16,12 @@ import memmpy
 from data import gdb13_graph_memmap
 
 if __name__ == "__main__":
-    n_atoms = 12
+    n_atoms = 10
     seed = 0
-    batch_size = 1
+    batch_size = 32
     max_degree = 3
     dim = 256
-    nlayer = 3
+    nlayer = 2
 
     data = gdb13_graph_memmap("data", n_atoms)
 
@@ -61,7 +61,7 @@ if __name__ == "__main__":
     key, eval_key = jrandom.split(key)
 
     model = GraphDiffusionAutoencoder(modul_key, nlayer=nlayer, dim=dim)
-    model = model.load_leaves("model_auto.npz")
+    model = model.load_leaves("model10cond.npz")
 
     model_fixed = functools.partial(model, adjacency=adjacency)
 
@@ -87,10 +87,10 @@ if __name__ == "__main__":
         base=jnp.e,
     )[::-1]
 
-    num_iterations = 1024
+    num_iterations = 2048
 
     tempture = 1.1
-    for num_iterations in [20]:
+    for temperature in [0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1]:
         samples = sample(
             sigmas=sigmas,
             score=score,

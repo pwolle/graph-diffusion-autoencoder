@@ -18,7 +18,7 @@ import functools
 if __name__ == "__main__":
     n_atoms = 10
     seed = 0
-    batch_size = 16
+    batch_size = 32
     max_degree = 3
     dim = 256
     nlayer = 2
@@ -48,20 +48,20 @@ if __name__ == "__main__":
     data_valid = memmpy.unwrap(data_valid)[: 1024 * 4]
 
     adjacency = jnp.array(data_valid[0])
-    adjacency = jnp.array(
-        [
-            [0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
-            [1, 0, 1, 0, 0, 0, 0, 0, 0, 0],
-            [0, 1, 0, 1, 0, 0, 0, 0, 0, 0],
-            [0, 0, 1, 0, 1, 0, 0, 0, 0, 0],
-            [0, 0, 0, 1, 0, 1, 0, 0, 0, 0],
-            [0, 0, 0, 0, 1, 0, 1, 0, 0, 0],
-            [0, 0, 0, 0, 0, 1, 0, 1, 0, 0],
-            [0, 0, 0, 0, 0, 0, 1, 0, 1, 0],
-            [0, 0, 0, 0, 0, 0, 0, 1, 0, 1],
-            [0, 0, 0, 0, 0, 0, 0, 0, 1, 0],
-        ]
-    )
+    # adjacency = jnp.array(
+    #     [
+    #         [0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+    #         [1, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+    #         [0, 1, 0, 1, 0, 0, 0, 0, 0, 0],
+    #         [0, 0, 1, 0, 1, 0, 0, 0, 0, 0],
+    #         [0, 0, 0, 1, 0, 1, 0, 0, 0, 0],
+    #         [0, 0, 0, 0, 1, 0, 1, 0, 0, 0],
+    #         [0, 0, 0, 0, 0, 1, 0, 1, 0, 0],
+    #         [0, 0, 0, 0, 0, 0, 1, 0, 1, 0],
+    #         [0, 0, 0, 0, 0, 0, 0, 1, 0, 1],
+    #         [0, 0, 0, 0, 0, 0, 0, 0, 1, 0],
+    #     ]
+    # )
     graph = nx.from_numpy_array(adjacency)
     nx.draw(graph)
     graph_image = wandb.Image(plt)
@@ -108,7 +108,7 @@ if __name__ == "__main__":
     num_iterations = 2048
 
     tempture = 0.8
-    for weight in [0.7, 0.9, 1, 1.1, 1.3, 1.5]:
+    for weight in [0.5, 1, 1.5, 2, 2.5, 3]:
         score = conditional_score_function(
             score_unconditional, score_conditional, weight=weight
         )
@@ -128,7 +128,7 @@ if __name__ == "__main__":
         plot = evaluate(
             samples=samples,
             max_degree=max_degree,
-            file_name="test_symmetric" + str(tempture),
+            file_name="test_superconditioning" + str(weight),
             use_wandb=True,
         )
 
@@ -138,6 +138,7 @@ if __name__ == "__main__":
                 "step_size": step_size,
                 "n_sigmas": n_sigmas,
                 "tempture": tempture,
+                "weight": weight,
                 "plot": plot,
             }
         )
