@@ -233,7 +233,7 @@ def score_function(probability):
     return score
 
 
-def conditional_score_function(score_unc, score_cond, weight, encoding):
+def conditional_score_function(score_unc, score_cond, weight):
     """
     Compute the score function for x + z and the encouding of x.
     With z ~ N(0, sigma^2).and x = 0 or 1.
