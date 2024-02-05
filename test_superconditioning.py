@@ -3,7 +3,7 @@ from models import BinaryEdgesModel, GraphDiffusionAutoencoder
 from sigma_intevall import sigma_lower_bound, sigma_upper_bound
 from evaluate import evaluate
 from data import gdb13_graph_memmap
-from sample_symmetric import to_conditianal_probability
+from sample_symmetric import conditional_score_function
 
 import jax
 import jax.random as jrandom
@@ -109,7 +109,7 @@ if __name__ == "__main__":
 
     tempture = 0.8
     for weight in [0.7, 0.9, 1, 1.1, 1.3, 1.5]:
-        score = to_conditianal_probability(
+        score = conditional_score_function(
             score_unconditional, score_conditional, weight=weight
         )
         score = jax.vmap(score)
