@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import functools
 
 if __name__ == "__main__":
-    n_atoms = 12
+    n_atoms = 10
     seed = 0
     batch_size = 16
     max_degree = 3
@@ -48,6 +48,20 @@ if __name__ == "__main__":
     data_valid = memmpy.unwrap(data_valid)[: 1024 * 4]
 
     adjacency = jnp.array(data_valid[0])
+    adjacency = jnp.array(
+        [
+            [0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+            [1, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+            [0, 1, 0, 1, 0, 0, 0, 0, 0, 0],
+            [0, 0, 1, 0, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 1, 0, 1, 0, 0, 0, 0],
+            [0, 0, 0, 0, 1, 0, 1, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 0, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 1, 0, 1, 0],
+            [0, 0, 0, 0, 0, 0, 0, 1, 0, 1],
+            [0, 0, 0, 0, 0, 0, 0, 0, 1, 0],
+        ]
+    )
     graph = nx.from_numpy_array(adjacency)
     nx.draw(graph)
     graph_image = wandb.Image(plt)
@@ -60,14 +74,16 @@ if __name__ == "__main__":
 
     model_unconditional = BinaryEdgesModel(modul_unc_key, nlayer=nlayer, dim=dim)
     model_unconditional = model_unconditional.load_leaves("model10unc.npz")
+    score_unconditional = score_function(model_unconditional)
 
     # conditional model
     key, modul_cond_key = jrandom.split(key)
 
-    model = GraphDiffusionAutoencoder(modul_cond_key, nlayer=nlayer, dim=dim)
-    model = model.load_leaves("model10cond.npz")
+    model_cond = GraphDiffusionAutoencoder(modul_cond_key, nlayer=nlayer, dim=dim)
+    model_cond = model_cond.load_leaves("model10cond.npz")
 
-    # model_fixed = functools.partial(model, adjacency=adjacency)
+    model_cond_fixed = functools.partial(model_cond, adjacency=adjacency)
+    score_conditional = score_function(model_cond_fixed)
 
     # score function
 
@@ -93,13 +109,9 @@ if __name__ == "__main__":
 
     tempture = 0.8
     for weight in [0.7, 0.9, 1, 1.1, 1.3, 1.5]:
-        conditional_probability = to_conditianal_probability(
-            model_unc=model_unconditional,
-            model_cond=model,
-            encouding=adjacency,
-            weight=1.2,
+        score = to_conditianal_probability(
+            score_unconditional, score_conditional, weight=weight
         )
-        score = score_function(model_unconditional)
         score = jax.vmap(score)
         score = jax.jit(score)
         samples = sample(

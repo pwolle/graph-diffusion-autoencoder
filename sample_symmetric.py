@@ -233,6 +233,37 @@ def score_function(probability):
     return score
 
 
+def conditional_score_function(score_unc, score_cond, weight, encoding):
+    """
+    Compute the score function for x + z and the encouding of x.
+    With z ~ N(0, sigma^2).and x = 0 or 1.
+    Given the probability density function of x = 1 given x + z and
+    the probability density function of x = 1 given x + z and the encoding of x
+
+    Parameters
+    ---
+    score_unc: Callable[[np.array, np.array], np.array]
+        Score function of x + z.
+    score_cond: Callable[[np.array, np.array, np.array], np.array]
+        Score function of x + z and the encouding of x.
+    weight: float
+        Weight of the two score functions.
+
+    Returns
+    ---
+    Callable[[np.array, np.array], np.array]
+        Score function.
+    """
+
+    def score(x_noise, sigma):
+        score_unc_x = score_unc(x_noise, sigma)
+        score_cond_x = score_cond(x_noise, sigma)
+        score = (1 - weight) * score_unc_x + weight * score_cond_x
+        return score
+
+    return score
+
+
 def to_conditianal_probability(model_unc, model_cond, encouding, weight):
     """
     Compute the logits of conditional probability of x given x + z and the encouding of x.
