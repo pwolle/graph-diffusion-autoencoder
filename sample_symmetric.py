@@ -233,7 +233,7 @@ def score_function(probability):
     return score
 
 
-def to_conditianal_probability(model, model_cond, encouding, weight):
+def to_conditianal_probability(model_unc, model_cond, encouding, weight):
     """
     Compute the logits of conditional probability of x given x + z and the encouding of x.
     With z ~ N(0, sigma^2).and x = 0 or 1.
@@ -257,10 +257,10 @@ def to_conditianal_probability(model, model_cond, encouding, weight):
         logits of conditional probability of x = 1 given x + z and the encouding of x.
     """
 
-    def probability(x, sigma):
-        logits_x = model(x, sigma)
-        logits_x_cond = model_cond(x, sigma, encouding)
-        logits = weight * logits_x + (1 - weight) * logits_x_cond
+    def probability(noisy_adjacency, sigma):
+        logits_x_unc = model_unc(noisy_adjacency, sigma)
+        logits_x_cond = model_cond(noisy_adjacency, sigma, encouding)
+        logits = (1 - weight) * logits_x_unc + weight * logits_x_cond
         return logits
 
     return probability
